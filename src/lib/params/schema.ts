@@ -3,8 +3,8 @@ import { z } from 'zod';
 export const UnitsSchema = z.enum(['metric', 'imperial']);
 export type Units = z.infer<typeof UnitsSchema>;
 
-export const ModelKindSchema = z.enum(['baseplate', 'bin']);
-export type ModelKind = z.infer<typeof ModelKindSchema>;
+export const LabelStyleSchema = z.enum(['none', 'paperPocket', 'clipTab']);
+export type LabelStyle = z.infer<typeof LabelStyleSchema>;
 
 export const BaseplateParamsSchema = z.object({
   kind: z.literal('baseplate'),
@@ -26,6 +26,10 @@ export const BinParamsSchema = z.object({
   stackingLip: z.boolean().default(true),
   magnetHoles: z.boolean().default(false),
   screwHoles: z.boolean().default(false),
+  scoopRamp: z.boolean().default(false),
+  divX: z.number().int().min(1).max(10).default(1),
+  divY: z.number().int().min(1).max(10).default(1),
+  labelStyle: LabelStyleSchema.default('none'),
 });
 export type BinParams = z.infer<typeof BinParamsSchema>;
 
@@ -35,9 +39,16 @@ export const ModelParamsSchema = z.discriminatedUnion('kind', [
 ]);
 export type ModelParams = z.infer<typeof ModelParamsSchema>;
 
+export const GridSpecSchema = z.object({
+  gridUnit: z.number().min(10).max(120).default(42),
+  heightUnit: z.number().min(2).max(30).default(7),
+});
+export type GridSpec = z.infer<typeof GridSpecSchema>;
+
 export const DesignSchema = z.object({
   v: z.literal(1),
   units: UnitsSchema.default('metric'),
+  spec: GridSpecSchema.default({ gridUnit: 42, heightUnit: 7 }),
   model: ModelParamsSchema,
 });
 export type Design = z.infer<typeof DesignSchema>;
@@ -45,5 +56,6 @@ export type Design = z.infer<typeof DesignSchema>;
 export const DEFAULT_DESIGN: Design = {
   v: 1,
   units: 'metric',
+  spec: { gridUnit: 42, heightUnit: 7 },
   model: BinParamsSchema.parse({ kind: 'bin' }),
 };

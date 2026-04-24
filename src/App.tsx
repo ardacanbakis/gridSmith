@@ -21,7 +21,7 @@ export default function App() {
     setError(null);
 
     getWorker()
-      .build({ model: design.model })
+      .build({ model: design.model, spec: design.spec })
       .then((res) => {
         if (seq !== buildSeq.current) return;
         if (res.ok) {
@@ -37,12 +37,12 @@ export default function App() {
       .finally(() => {
         if (seq === buildSeq.current) setBuilding(false);
       });
-  }, [design.model]);
+  }, [design.model, design.spec]);
 
   const onExportStl = async () => {
     setExporting(true);
     try {
-      const buffer = await getWorker().exportStl({ model: design.model });
+      const buffer = await getWorker().exportStl({ model: design.model, spec: design.spec });
       const name = filenameFor(design.model);
       downloadBlob(buffer, name, 'model/stl');
     } catch (err) {
@@ -58,9 +58,9 @@ export default function App() {
       <div className="flex-1 flex min-h-0">
         <ParameterPanel />
         <main className="flex-1 relative">
-          <Viewport mesh={mesh} loading={building} />
+          <Viewport mesh={mesh} loading={building} gridUnit={design.spec.gridUnit} />
           {error && (
-            <div className="absolute bottom-3 left-3 right-3 panel rounded px-3 py-2 text-xs text-red-300 border-red-500/40">
+            <div className="absolute bottom-3 left-3 right-3 panel rounded px-3 py-2 text-xs text-red-400 border border-red-500/40">
               {error}
             </div>
           )}

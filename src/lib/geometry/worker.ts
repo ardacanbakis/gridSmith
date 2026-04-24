@@ -1,21 +1,39 @@
 import * as Comlink from 'comlink';
 import { getManifold } from './manifold';
 import { buildBaseplate, buildBin } from '@/lib/gridfinity/primitives';
-import type { ModelParams } from '@/lib/params/schema';
+import { buildSpec } from '@/lib/gridfinity/spec';
 import { meshToBinaryStl } from './stl';
 import type { GeometryRequest, GeometryResponse, GeometryWorkerApi, MeshData } from './types';
 import type { Manifold, ManifoldToplevel } from 'manifold-3d';
 
-async function buildManifold(model: ModelParams): Promise<{ m: ManifoldToplevel; result: Manifold }> {
+async function buildManifold(request: GeometryRequest): Promise<{ m: ManifoldToplevel; result: Manifold }> {
   const m = await getManifold();
-  const result = model.kind === 'baseplate' ? buildBaseplate(m, model) : buildBin(m, model);
+  const spec = buildSpec(request.spec.gridUnit, request.spec.heightUnit);
+  const result = request.model.kind === 'baseplate'
+    ? buildBaseplate(m, spec, request.model)
+    : buildBin(m, spec, request.model);
   return { m, result };
 }
 
 function toMeshData(manifold: Manifold): MeshData {
   const mesh = manifold.getMesh();
+  const numProp = mesh.numProp;
+
+  let vertices: Float32Array;
+  if (numProp === 3) {
+    vertices = new Float32Array(mesh.vertProperties);
+  } else {
+    const vertCount = mesh.vertProperties.length / numProp;
+    vertices = new Float32Array(vertCount * 3);
+    for (let i = 0; i < vertCount; i++) {
+      vertices[i * 3] = mesh.vertProperties[i * numProp];
+      vertices[i * 3 + 1] = mesh.vertProperties[i * numProp + 1];
+      vertices[i * 3 + 2] = mesh.vertProperties[i * numProp + 2];
+    }
+  }
+
   return {
-    vertices: new Float32Array(mesh.vertProperties),
+    vertices,
     indices: new Uint32Array(mesh.triVerts),
     triangleCount: mesh.triVerts.length / 3,
   };
@@ -24,7 +42,7 @@ function toMeshData(manifold: Manifold): MeshData {
 const api: GeometryWorkerApi = {
   async build(request: GeometryRequest): Promise<GeometryResponse> {
     try {
-      const { result } = await buildManifold(request.model);
+      const { result } = await buildManifold(request);
       const mesh = toMeshData(result);
       const box = result.boundingBox();
       result.delete();
@@ -42,7 +60,7 @@ const api: GeometryWorkerApi = {
   },
 
   async exportStl(request: GeometryRequest): Promise<ArrayBuffer> {
-    const { result } = await buildManifold(request.model);
+    const { result } = await buildManifold(request);
     const mesh = toMeshData(result);
     result.delete();
     return meshToBinaryStl(mesh);

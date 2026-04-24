@@ -3,6 +3,44 @@
 @tailwind utilities;
 
 @layer base {
+  :root {
+    --bg: 248 250 252;
+    --bg-panel: 255 255 255;
+    --bg-elevated: 241 245 249;
+    --border: 226 232 240;
+    --border-strong: 203 213 225;
+    --text: 15 23 42;
+    --text-muted: 71 85 105;
+    --text-dim: 148 163 184;
+    --accent: 37 99 235;
+    --accent-hover: 59 130 246;
+    --accent-fg: 255 255 255;
+    --material: 59 130 246;
+    --canvas-bg: 248 250 252;
+    --grid-minor: 203 213 225;
+    --grid-major: 148 163 184;
+    --warn: 217 119 6;
+  }
+
+  .dark {
+    --bg: 15 17 21;
+    --bg-panel: 22 26 33;
+    --bg-elevated: 30 35 44;
+    --border: 42 47 58;
+    --border-strong: 58 65 80;
+    --text: 229 231 235;
+    --text-muted: 156 163 175;
+    --text-dim: 107 114 128;
+    --accent: 245 158 11;
+    --accent-hover: 251 191 36;
+    --accent-fg: 15 17 21;
+    --material: 245 158 11;
+    --canvas-bg: 15 17 21;
+    --grid-minor: 42 47 58;
+    --grid-major: 58 65 80;
+    --warn: 245 158 11;
+  }
+
   html, body, #root {
     height: 100%;
   }
@@ -12,7 +50,6 @@
     font-feature-settings: 'cv11', 'ss01';
   }
 
-  /* Tabular figures for parameter values so sliders don't jitter. */
   .tabular {
     font-variant-numeric: tabular-nums;
   }
@@ -24,12 +61,17 @@
   }
 
   .btn {
-    @apply inline-flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors;
-    @apply border border-border bg-bg-elevated hover:bg-border;
+    @apply inline-flex items-center justify-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors;
+    @apply border border-border bg-bg-elevated text-text hover:bg-border;
   }
 
   .btn-primary {
-    @apply btn bg-accent text-bg border-accent hover:bg-accent-hover hover:border-accent-hover;
+    @apply inline-flex items-center justify-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors;
+    @apply bg-accent text-accent-fg border border-accent hover:bg-accent-hover hover:border-accent-hover;
+  }
+
+  .btn:disabled, .btn-primary:disabled {
+    @apply opacity-50 cursor-not-allowed;
   }
 
   .input {
@@ -38,5 +80,9 @@
 
   .label {
     @apply text-xs text-text-muted uppercase tracking-wide font-medium;
+  }
+
+  .warn-badge {
+    @apply text-[10px] font-medium px-1.5 py-0.5 rounded bg-warn/15 text-warn border border-warn/30 uppercase tracking-wide;
   }
 }

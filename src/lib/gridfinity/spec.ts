@@ -1,58 +1,65 @@
 /**
- * Gridfinity dimensional spec.
- * Source: Zack Freedman's Gridfinity (MIT) and the community-maintained spec
- * at https://github.com/Stu142/Gridfinity-Documentation.
+ * Gridfinity dimensional spec, scaled to any grid size.
+ *
+ * Source: Zack Freedman's Gridfinity (MIT) + community-maintained spec at
+ * https://github.com/Stu142/Gridfinity-Documentation. All base-profile
+ * dimensions are scaled linearly off a standard 42 mm cell and 7 mm height unit;
+ * if the user changes either, parts won't mate with stock Gridfinity but will be
+ * self-consistent across everything generated here.
  *
  * All values in millimetres.
  */
-export const GRID = {
-  /** Footprint of one cell on the baseplate, edge to edge. */
-  unit: 42,
-  /** Vertical height unit; bin Z is always a multiple of this. */
+export const STANDARD = {
+  gridUnit: 42,
   heightUnit: 7,
-  /** Tolerance subtracted from each cell so adjacent bins don't bind. */
   clearance: 0.5,
-  /** Outer corner radius at the top of the bin/baseplate base profile. */
   outerCornerRadius: 4,
 } as const;
 
-/**
- * Bin base profile, bottom up.
- * Each layer is a rounded square cross-section; we loft between them.
- * This profile mates with the female pocket on the baseplate.
- */
-export const BASE_PROFILE = {
-  layers: [
-    { z: 0.0, size: 35.6, radius: 1.6 },
-    { z: 0.8, size: 37.2, radius: 2.4 },
-    { z: 2.6, size: 37.2, radius: 2.4 },
-    { z: 4.75, size: 41.5, radius: 4.0 },
-  ],
-  totalHeight: 4.75,
-} as const;
+export type Spec = {
+  gridUnit: number;
+  heightUnit: number;
+  clearance: number;
+  baseProfile: {
+    layers: ReadonlyArray<{ z: number; size: number; radius: number }>;
+    totalHeight: number;
+  };
+  magnet: { diameter: number; depth: number; insetFromCenter: number };
+  screw: { diameter: number };
+  stackLip: { height: number };
+};
 
-/** Standard magnet pocket: 6 mm diameter × 2 mm deep, one per base corner. */
-export const MAGNET = {
-  diameter: 6.0,
-  depth: 2.0,
-  /** Distance from cell centre to magnet centre, on each axis. */
-  insetFromCenter: 13.0,
-} as const;
+const STANDARD_PROFILE_LAYERS = [
+  { z: 0.0, size: 35.6, radius: 1.6 },
+  { z: 0.8, size: 37.2, radius: 2.4 },
+  { z: 2.6, size: 37.2, radius: 2.4 },
+  { z: 4.75, size: 41.5, radius: 4.0 },
+] as const;
 
-/** Optional M3 screw hole through the magnet pocket. */
-export const SCREW = {
-  diameter: 3.0,
-} as const;
+const STANDARD_PROFILE_HEIGHT = 4.75;
 
-/** Stacking lip allows bins to nest on top of each other. */
-export const STACK_LIP = {
-  height: 4.4,
-} as const;
-
-export function cellsToMm(cells: number): number {
-  return cells * GRID.unit;
+export function buildSpec(gridUnit: number, heightUnit: number): Spec {
+  const s = gridUnit / STANDARD.gridUnit;
+  return {
+    gridUnit,
+    heightUnit,
+    clearance: STANDARD.clearance * s,
+    baseProfile: {
+      layers: STANDARD_PROFILE_LAYERS.map((l) => ({
+        z: l.z * s,
+        size: l.size * s,
+        radius: l.radius * s,
+      })),
+      totalHeight: STANDARD_PROFILE_HEIGHT * s,
+    },
+    magnet: { diameter: 6.0, depth: 2.0, insetFromCenter: 13.0 * s },
+    screw: { diameter: 3.0 },
+    stackLip: { height: 4.4 * s },
+  };
 }
 
-export function heightUnitsToMm(units: number): number {
-  return units * GRID.heightUnit;
+export const STANDARD_SPEC = buildSpec(STANDARD.gridUnit, STANDARD.heightUnit);
+
+export function isStandardSpec(gridUnit: number, heightUnit: number): boolean {
+  return gridUnit === STANDARD.gridUnit && heightUnit === STANDARD.heightUnit;
 }

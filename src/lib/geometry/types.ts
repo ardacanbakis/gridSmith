@@ -1,4 +1,4 @@
-import type { ModelParams } from '@/lib/params/schema';
+import type { GridSpec, ModelParams } from '@/lib/params/schema';
 
 export type MeshData = {
   vertices: Float32Array;
@@ -8,6 +8,7 @@ export type MeshData = {
 
 export type GeometryRequest = {
   model: ModelParams;
+  spec: GridSpec;
 };
 
 export type GeometryResponse =

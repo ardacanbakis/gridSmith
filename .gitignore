@@ -19,3 +19,9 @@ coverage
 .firebase
 firebase-debug.log
 .firebaserc
+*.tsbuildinfo
+tailwind.config.js
+tailwind.config.d.ts
+vite.config.js
+vite.config.d.ts
+postcss.config.d.ts

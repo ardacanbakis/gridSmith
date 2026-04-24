@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import {
   DEFAULT_DESIGN,
   type Design,
+  type GridSpec,
   type ModelParams,
   BaseplateParamsSchema,
   BinParamsSchema,
@@ -14,6 +15,7 @@ type DesignState = {
   setModel: (model: ModelParams) => void;
   switchKind: (kind: ModelParams['kind']) => void;
   setUnits: (units: Design['units']) => void;
+  setSpec: (spec: Partial<GridSpec>) => void;
 };
 
 const initial = readDesignFromUrl() ?? DEFAULT_DESIGN;
@@ -40,6 +42,11 @@ export const useDesignStore = create<DesignState>((set, get) => ({
   },
   setUnits: (units) => {
     const next = { ...get().design, units };
+    set({ design: next });
+    writeDesignToUrl(next);
+  },
+  setSpec: (patch) => {
+    const next = { ...get().design, spec: { ...get().design.spec, ...patch } };
     set({ design: next });
     writeDesignToUrl(next);
   },
