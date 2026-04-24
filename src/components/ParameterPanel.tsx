@@ -2,9 +2,12 @@ import { useDesignStore } from '@/store/designStore';
 import {
   BaseplateParamsSchema,
   BinParamsSchema,
+  DrillBitHolderParamsSchema,
   type LabelStyle,
+  type BitSetId,
 } from '@/lib/params/schema';
 import { STANDARD, isStandardSpec } from '@/lib/gridfinity/spec';
+import { BIT_SETS } from '@/lib/gridfinity/bitSets';
 
 function Section({ title, children, right }: { title: string; children: React.ReactNode; right?: React.ReactNode }) {
   return (
@@ -136,6 +139,7 @@ export function ParameterPanel() {
             options={[
               { value: 'bin', label: 'Bin' },
               { value: 'baseplate', label: 'Baseplate' },
+              { value: 'drillBitHolder', label: 'Drill bits' },
             ]}
           />
         </Section>
@@ -171,7 +175,150 @@ export function ParameterPanel() {
           )}
         </Section>
 
-        {model.kind === 'bin' ? (
+        {model.kind === 'drillBitHolder' ? (
+          <>
+            <Section title="Holder size">
+              <NumberField
+                label="Cells X"
+                value={model.cellsX}
+                min={1}
+                max={10}
+                onChange={(v) => setModel(DrillBitHolderParamsSchema.parse({ ...model, cellsX: v }))}
+              />
+              <NumberField
+                label="Cells Y"
+                value={model.cellsY}
+                min={1}
+                max={10}
+                onChange={(v) => setModel(DrillBitHolderParamsSchema.parse({ ...model, cellsY: v }))}
+              />
+              <NumberField
+                label="Height (units)"
+                value={model.heightUnits}
+                min={2}
+                max={20}
+                onChange={(v) => setModel(DrillBitHolderParamsSchema.parse({ ...model, heightUnits: v }))}
+                suffix={`= ${(model.heightUnits * spec.heightUnit).toFixed(1)} mm`}
+              />
+            </Section>
+
+            <Section title="Bit set">
+              <label className="flex flex-col gap-1">
+                <span className="label normal-case">Preset</span>
+                <select
+                  className="input"
+                  value={model.bitSet}
+                  onChange={(e) =>
+                    setModel(
+                      DrillBitHolderParamsSchema.parse({
+                        ...model,
+                        bitSet: e.target.value as BitSetId,
+                      }),
+                    )
+                  }
+                >
+                  {Object.values(BIT_SETS).map((bs) => (
+                    <option key={bs.id} value={bs.id}>
+                      {bs.label} — {bs.diameters.length} bits
+                    </option>
+                  ))}
+                  <option value="custom">Custom list…</option>
+                </select>
+              </label>
+              {model.bitSet === 'custom' && (
+                <label className="flex flex-col gap-1">
+                  <span className="label normal-case">Diameters (mm, comma-separated)</span>
+                  <input
+                    className="input"
+                    type="text"
+                    defaultValue={model.customBits.join(', ')}
+                    onBlur={(e) => {
+                      const parsed = e.target.value
+                        .split(',')
+                        .map((s) => Number(s.trim()))
+                        .filter((n) => Number.isFinite(n) && n > 0);
+                      setModel(
+                        DrillBitHolderParamsSchema.parse({ ...model, customBits: parsed }),
+                      );
+                    }}
+                    placeholder="1, 1.5, 2, 2.5, 3…"
+                  />
+                </label>
+              )}
+            </Section>
+
+            <Section title="Holes">
+              <NumberField
+                label="Hole depth"
+                value={model.holeDepth}
+                min={2}
+                max={50}
+                step={0.5}
+                onChange={(v) =>
+                  setModel(DrillBitHolderParamsSchema.parse({ ...model, holeDepth: v }))
+                }
+                suffix="mm"
+              />
+              <NumberField
+                label="Radial clearance"
+                value={model.clearance}
+                min={0}
+                max={1}
+                step={0.05}
+                onChange={(v) =>
+                  setModel(DrillBitHolderParamsSchema.parse({ ...model, clearance: v }))
+                }
+                suffix="mm"
+              />
+              <NumberField
+                label="Hole-to-hole spacing"
+                value={model.spacing}
+                min={0.5}
+                max={10}
+                step={0.1}
+                onChange={(v) =>
+                  setModel(DrillBitHolderParamsSchema.parse({ ...model, spacing: v }))
+                }
+                suffix="mm"
+              />
+              <NumberField
+                label="Edge clearance"
+                value={model.edgeClearance}
+                min={1}
+                max={10}
+                step={0.5}
+                onChange={(v) =>
+                  setModel(DrillBitHolderParamsSchema.parse({ ...model, edgeClearance: v }))
+                }
+                suffix="mm"
+              />
+            </Section>
+
+            <Section title="Finish">
+              <Toggle
+                label="Stacking lip"
+                value={model.stackingLip}
+                onChange={(v) =>
+                  setModel(DrillBitHolderParamsSchema.parse({ ...model, stackingLip: v }))
+                }
+              />
+              <Toggle
+                label="Magnet holes"
+                value={model.magnetHoles}
+                onChange={(v) =>
+                  setModel(DrillBitHolderParamsSchema.parse({ ...model, magnetHoles: v }))
+                }
+              />
+              <Toggle
+                label="Screw holes"
+                value={model.screwHoles}
+                onChange={(v) =>
+                  setModel(DrillBitHolderParamsSchema.parse({ ...model, screwHoles: v }))
+                }
+              />
+            </Section>
+          </>
+        ) : model.kind === 'bin' ? (
           <>
             <Section title="Bin size">
               <NumberField

@@ -334,3 +334,133 @@ function addClipTabSlot(
     .translate([0, -outerD / 2 + slotDepth / 2, totalH - slotH / 2 - 0.4]);
   return bin.subtract(slot);
 }
+
+export type DrillHole = {
+  /** Hole centre X, in bin-local coordinates (bin is centred on origin). */
+  x: number;
+  /** Hole centre Y. */
+  y: number;
+  /** Bit diameter in mm — we grow the hole by clearance radially. */
+  diameter: number;
+  /** Text label to record alongside the hole (used by later emboss feature). */
+  label: string;
+};
+
+export type DrillBitHolderOptions = {
+  cellsX: number;
+  cellsY: number;
+  heightUnits: number;
+  bits: ReadonlyArray<{ mm: number; label: string }>;
+  holeDepth: number;
+  clearance: number;
+  spacing: number;
+  edgeClearance: number;
+  stackingLip: boolean;
+  magnetHoles: boolean;
+  screwHoles: boolean;
+};
+
+/**
+ * Single-pass shelf packing: sort bits largest-first, flow left-to-right top-to-bottom.
+ * Good enough for typical drill sets; a real bin-packer is overkill.
+ */
+export function layoutBits(
+  bits: ReadonlyArray<{ mm: number; label: string }>,
+  innerW: number,
+  innerD: number,
+  clearance: number,
+  spacing: number,
+): { placed: DrillHole[]; dropped: number } {
+  const sorted = [...bits].sort((a, b) => b.mm - a.mm);
+  const placed: DrillHole[] = [];
+
+  let cursorX = -innerW / 2;
+  let rowTopY = innerD / 2;
+  let rowMaxDia = 0;
+
+  for (const bit of sorted) {
+    const holeRadius = bit.mm / 2 + clearance;
+    const holeDia = holeRadius * 2;
+
+    if (cursorX + holeDia > innerW / 2 + 0.001) {
+      cursorX = -innerW / 2;
+      rowTopY -= rowMaxDia + spacing;
+      rowMaxDia = 0;
+    }
+
+    if (rowTopY - holeDia < -innerD / 2 - 0.001) {
+      return { placed, dropped: sorted.length - placed.length };
+    }
+
+    placed.push({
+      x: cursorX + holeRadius,
+      y: rowTopY - holeRadius,
+      diameter: bit.mm,
+      label: bit.label,
+    });
+    cursorX += holeDia + spacing;
+    if (holeDia > rowMaxDia) rowMaxDia = holeDia;
+  }
+
+  return { placed, dropped: 0 };
+}
+
+export function buildDrillBitHolder(
+  m: ManifoldToplevel,
+  spec: Spec,
+  opts: DrillBitHolderOptions,
+): { result: Manifold; dropped: number; placed: number } {
+  const { gridUnit, clearance: binClearance, heightUnit, baseProfile, stackLip } = spec;
+  const outerW = opts.cellsX * gridUnit - binClearance;
+  const outerD = opts.cellsY * gridUnit - binClearance;
+  const totalH = opts.heightUnits * heightUnit;
+  const baseH = baseProfile.totalHeight;
+
+  const baseTiled = tileGrid(binBaseUnit(m, spec), opts.cellsX, opts.cellsY, gridUnit);
+  const bodyHeight = totalH - baseH;
+  const body = m.Manifold.cube([outerW, outerD, bodyHeight], true)
+    .translate([0, 0, baseH + bodyHeight / 2]);
+
+  let result = baseTiled.add(body);
+
+  const usableW = outerW - 2 * opts.edgeClearance;
+  const usableD = outerD - 2 * opts.edgeClearance;
+  const { placed, dropped } = layoutBits(opts.bits, usableW, usableD, opts.clearance, opts.spacing);
+
+  if (placed.length > 0) {
+    const holeDepth = Math.min(opts.holeDepth, totalH - 1.0);
+    let holes: Manifold | null = null;
+    for (const p of placed) {
+      const holeRadius = p.diameter / 2 + opts.clearance;
+      const cyl = m.Manifold.cylinder(holeDepth + 0.1, holeRadius, -1, 48, true)
+        .translate([p.x, p.y, totalH - holeDepth / 2 + 0.05]);
+      holes = holes ? holes.add(cyl) : cyl;
+    }
+    if (holes) result = result.subtract(holes);
+  }
+
+  if (opts.stackingLip) {
+    const lipOuter = m.Manifold.cube([outerW, outerD, stackLip.height], true)
+      .translate([0, 0, totalH + stackLip.height / 2]);
+    const lipInner = m.Manifold.cube(
+      [outerW - 2.4, outerD - 2.4, stackLip.height + 0.1],
+      true,
+    ).translate([0, 0, totalH + stackLip.height / 2]);
+    result = result.add(lipOuter.subtract(lipInner));
+  }
+
+  if (opts.magnetHoles || opts.screwHoles) {
+    const holes = magnetAndScrewHoles(
+      m,
+      spec,
+      opts.cellsX,
+      opts.cellsY,
+      opts.magnetHoles,
+      opts.screwHoles,
+      baseH,
+    );
+    if (holes) result = result.subtract(holes);
+  }
+
+  return { result, placed: placed.length, dropped };
+}

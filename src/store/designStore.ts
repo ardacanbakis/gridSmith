@@ -6,6 +6,7 @@ import {
   type ModelParams,
   BaseplateParamsSchema,
   BinParamsSchema,
+  DrillBitHolderParamsSchema,
 } from '@/lib/params/schema';
 import { writeDesignToUrl, readDesignFromUrl } from '@/lib/params/url';
 
@@ -32,10 +33,10 @@ export const useDesignStore = create<DesignState>((set, get) => ({
     writeDesignToUrl(next);
   },
   switchKind: (kind) => {
-    const model: ModelParams =
-      kind === 'baseplate'
-        ? BaseplateParamsSchema.parse({ kind: 'baseplate' })
-        : BinParamsSchema.parse({ kind: 'bin' });
+    let model: ModelParams;
+    if (kind === 'baseplate') model = BaseplateParamsSchema.parse({ kind: 'baseplate' });
+    else if (kind === 'drillBitHolder') model = DrillBitHolderParamsSchema.parse({ kind: 'drillBitHolder' });
+    else model = BinParamsSchema.parse({ kind: 'bin' });
     const next = { ...get().design, model };
     set({ design: next });
     writeDesignToUrl(next);

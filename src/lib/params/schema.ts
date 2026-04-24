@@ -6,6 +6,16 @@ export type Units = z.infer<typeof UnitsSchema>;
 export const LabelStyleSchema = z.enum(['none', 'paperPocket', 'clipTab']);
 export type LabelStyle = z.infer<typeof LabelStyleSchema>;
 
+export const BitSetIdSchema = z.enum([
+  'metric-basic',
+  'metric-fine',
+  'fractional-inch',
+  'letter',
+  'number',
+  'custom',
+]);
+export type BitSetId = z.infer<typeof BitSetIdSchema>;
+
 export const BaseplateParamsSchema = z.object({
   kind: z.literal('baseplate'),
   cellsX: z.number().int().min(1).max(20).default(2),
@@ -33,9 +43,27 @@ export const BinParamsSchema = z.object({
 });
 export type BinParams = z.infer<typeof BinParamsSchema>;
 
+export const DrillBitHolderParamsSchema = z.object({
+  kind: z.literal('drillBitHolder'),
+  cellsX: z.number().int().min(1).max(20).default(3),
+  cellsY: z.number().int().min(1).max(20).default(2),
+  heightUnits: z.number().int().min(2).max(30).default(4),
+  bitSet: BitSetIdSchema.default('metric-basic'),
+  customBits: z.array(z.number().min(0.3).max(25)).default([]),
+  holeDepth: z.number().min(2).max(50).default(18),
+  clearance: z.number().min(0).max(1).default(0.15),
+  spacing: z.number().min(0.5).max(10).default(3),
+  edgeClearance: z.number().min(1).max(10).default(4),
+  stackingLip: z.boolean().default(true),
+  magnetHoles: z.boolean().default(false),
+  screwHoles: z.boolean().default(false),
+});
+export type DrillBitHolderParams = z.infer<typeof DrillBitHolderParamsSchema>;
+
 export const ModelParamsSchema = z.discriminatedUnion('kind', [
   BaseplateParamsSchema,
   BinParamsSchema,
+  DrillBitHolderParamsSchema,
 ]);
 export type ModelParams = z.infer<typeof ModelParamsSchema>;
 

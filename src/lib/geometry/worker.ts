@@ -1,18 +1,37 @@
 import * as Comlink from 'comlink';
 import { getManifold } from './manifold';
-import { buildBaseplate, buildBin } from '@/lib/gridfinity/primitives';
+import { buildBaseplate, buildBin, buildDrillBitHolder } from '@/lib/gridfinity/primitives';
 import { buildSpec } from '@/lib/gridfinity/spec';
+import { bitsForSet } from '@/lib/gridfinity/bitSets';
 import { meshToBinaryStl } from './stl';
-import type { GeometryRequest, GeometryResponse, GeometryWorkerApi, MeshData } from './types';
+import type { GeometryRequest, GeometryResponse, GeometryWorkerApi, MeshData, BuildStats } from './types';
 import type { Manifold, ManifoldToplevel } from 'manifold-3d';
 
-async function buildManifold(request: GeometryRequest): Promise<{ m: ManifoldToplevel; result: Manifold }> {
+async function buildManifold(request: GeometryRequest): Promise<{
+  m: ManifoldToplevel;
+  result: Manifold;
+  stats?: BuildStats;
+}> {
   const m = await getManifold();
   const spec = buildSpec(request.spec.gridUnit, request.spec.heightUnit);
-  const result = request.model.kind === 'baseplate'
-    ? buildBaseplate(m, spec, request.model)
-    : buildBin(m, spec, request.model);
-  return { m, result };
+
+  if (request.model.kind === 'baseplate') {
+    return { m, result: buildBaseplate(m, spec, request.model) };
+  }
+  if (request.model.kind === 'bin') {
+    return { m, result: buildBin(m, spec, request.model) };
+  }
+
+  const bits = bitsForSet(request.model.bitSet, request.model.customBits);
+  const { result, placed, dropped } = buildDrillBitHolder(m, spec, {
+    ...request.model,
+    bits,
+  });
+  return {
+    m,
+    result,
+    stats: { placedHoles: placed, droppedHoles: dropped },
+  };
 }
 
 function toMeshData(manifold: Manifold): MeshData {
@@ -42,7 +61,7 @@ function toMeshData(manifold: Manifold): MeshData {
 const api: GeometryWorkerApi = {
   async build(request: GeometryRequest): Promise<GeometryResponse> {
     try {
-      const { result } = await buildManifold(request);
+      const { result, stats } = await buildManifold(request);
       const mesh = toMeshData(result);
       const box = result.boundingBox();
       result.delete();
@@ -53,6 +72,7 @@ const api: GeometryWorkerApi = {
           min: [box.min[0], box.min[1], box.min[2]],
           max: [box.max[0], box.max[1], box.max[2]],
         },
+        stats,
       };
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };
