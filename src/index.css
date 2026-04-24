@@ -1,0 +1,42 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html, body, #root {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-bg text-text font-sans antialiased;
+    font-feature-settings: 'cv11', 'ss01';
+  }
+
+  /* Tabular figures for parameter values so sliders don't jitter. */
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer components {
+  .panel {
+    @apply bg-bg-panel border border-border;
+  }
+
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors;
+    @apply border border-border bg-bg-elevated hover:bg-border;
+  }
+
+  .btn-primary {
+    @apply btn bg-accent text-bg border-accent hover:bg-accent-hover hover:border-accent-hover;
+  }
+
+  .input {
+    @apply w-full px-2 py-1 rounded bg-bg-elevated border border-border text-sm tabular focus:outline-none focus:border-accent;
+  }
+
+  .label {
+    @apply text-xs text-text-muted uppercase tracking-wide font-medium;
+  }
+}
