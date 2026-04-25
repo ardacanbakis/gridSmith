@@ -100,7 +100,49 @@ src/
 └── types/                  Ambient module declarations
 ```
 
-## Enabling Firebase (optional)
+## Deploying
+
+Manifold's WASM kernel is fastest with `SharedArrayBuffer`, which requires
+the page to be **cross-origin isolated** — meaning the server must send:
+
+- `Cross-Origin-Opener-Policy: same-origin`
+- `Cross-Origin-Embedder-Policy: require-corp`
+
+`coi-serviceworker` is bundled and registered automatically. On hosts that
+don't let you set headers (GitHub Pages), the shim's service worker
+intercepts requests and adds them. On hosts that do (Firebase, Cloudflare),
+the shim self-detects and no-ops.
+
+### GitHub Pages
+
+The repo ships with `.github/workflows/deploy-pages.yml` that builds and
+deploys on every push to `main` (or the active feature branch).
+
+One-time setup in your fork:
+
+1. Repo → **Settings → Pages → Build and deployment → Source: GitHub Actions**.
+2. Push. The Action builds with `VITE_BASE_PATH=/<repo-name>/` and deploys.
+3. App will be live at `https://<your-username>.github.io/<repo-name>/`.
+
+### Firebase Hosting (when you're ready to switch)
+
+`firebase.json` is committed and configured: it points to `dist/`, sends the
+COOP/COEP headers natively, sets aggressive caching for fingerprinted
+assets, and rewrites SPA-style.
+
+```bash
+npm install -g firebase-tools
+firebase login
+cp .firebaserc.example .firebaserc   # then set your project ID
+npm run build                        # base path defaults to "/"
+firebase deploy
+```
+
+You can keep both targets active during a migration: Pages builds with
+`VITE_BASE_PATH=/<repo>/`, Firebase builds with no env var (defaults to
+`/`).
+
+## Enabling Firebase auth + saved designs (optional)
 
 Gridsmith works fully without Firebase. Designs are encoded in the URL, so
 "share" = copy the link.
