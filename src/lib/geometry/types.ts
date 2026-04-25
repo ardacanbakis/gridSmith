@@ -16,11 +16,16 @@ export type GeometryRequest = {
   spec: GridSpec;
 };
 
+export type Bbox = {
+  min: [number, number, number];
+  max: [number, number, number];
+};
+
 export type GeometryResponse =
   | {
       ok: true;
       mesh: MeshData;
-      bbox: { min: [number, number, number]; max: [number, number, number] };
+      bbox: Bbox;
       stats?: BuildStats;
     }
   | { ok: false; error: string };

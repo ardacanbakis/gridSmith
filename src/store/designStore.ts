@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { temporal } from 'zundo';
 import {
   DEFAULT_DESIGN,
   type Design,
@@ -22,35 +23,52 @@ type DesignState = {
 
 const initial = readDesignFromUrl() ?? DEFAULT_DESIGN;
 
-export const useDesignStore = create<DesignState>((set, get) => ({
-  design: initial,
-  setDesign: (next) => {
-    set({ design: next });
-    writeDesignToUrl(next);
-  },
-  setModel: (model) => {
-    const next = { ...get().design, model };
-    set({ design: next });
-    writeDesignToUrl(next);
-  },
-  switchKind: (kind) => {
-    let model: ModelParams;
-    if (kind === 'baseplate') model = BaseplateParamsSchema.parse({ kind: 'baseplate' });
-    else if (kind === 'drillBitHolder') model = DrillBitHolderParamsSchema.parse({ kind: 'drillBitHolder' });
-    else if (kind === 'screwOrganizer') model = ScrewOrganizerParamsSchema.parse({ kind: 'screwOrganizer' });
-    else model = BinParamsSchema.parse({ kind: 'bin' });
-    const next = { ...get().design, model };
-    set({ design: next });
-    writeDesignToUrl(next);
-  },
-  setUnits: (units) => {
-    const next = { ...get().design, units };
-    set({ design: next });
-    writeDesignToUrl(next);
-  },
-  setSpec: (patch) => {
-    const next = { ...get().design, spec: { ...get().design.spec, ...patch } };
-    set({ design: next });
-    writeDesignToUrl(next);
-  },
-}));
+export const useDesignStore = create<DesignState>()(
+  temporal(
+    (set, get) => ({
+      design: initial,
+      setDesign: (next) => {
+        set({ design: next });
+        writeDesignToUrl(next);
+      },
+      setModel: (model) => {
+        const next = { ...get().design, model };
+        set({ design: next });
+        writeDesignToUrl(next);
+      },
+      switchKind: (kind) => {
+        let model: ModelParams;
+        if (kind === 'baseplate') model = BaseplateParamsSchema.parse({ kind: 'baseplate' });
+        else if (kind === 'drillBitHolder') model = DrillBitHolderParamsSchema.parse({ kind: 'drillBitHolder' });
+        else if (kind === 'screwOrganizer') model = ScrewOrganizerParamsSchema.parse({ kind: 'screwOrganizer' });
+        else model = BinParamsSchema.parse({ kind: 'bin' });
+        const next = { ...get().design, model };
+        set({ design: next });
+        writeDesignToUrl(next);
+      },
+      setUnits: (units) => {
+        const next = { ...get().design, units };
+        set({ design: next });
+        writeDesignToUrl(next);
+      },
+      setSpec: (patch) => {
+        const next = { ...get().design, spec: { ...get().design.spec, ...patch } };
+        set({ design: next });
+        writeDesignToUrl(next);
+      },
+    }),
+    {
+      // Track only the design payload — action methods aren't snapshot data.
+      partialize: (state) => ({ design: state.design }),
+      // Coalesce rapid slider drags into one undo step.
+      handleSet: (handleSet) => {
+        let timer: ReturnType<typeof setTimeout> | null = null;
+        return (state) => {
+          if (timer) clearTimeout(timer);
+          timer = setTimeout(() => handleSet(state), 350);
+        };
+      },
+      limit: 50,
+    },
+  ),
+);
