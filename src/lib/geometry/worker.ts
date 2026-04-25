@@ -1,6 +1,11 @@
 import * as Comlink from 'comlink';
 import { getManifold } from './manifold';
-import { buildBaseplate, buildBin, buildDrillBitHolder } from '@/lib/gridfinity/primitives';
+import {
+  buildBaseplate,
+  buildBin,
+  buildDrillBitHolder,
+  buildScrewOrganizer,
+} from '@/lib/gridfinity/primitives';
 import { buildSpec } from '@/lib/gridfinity/spec';
 import { bitsForSet } from '@/lib/gridfinity/bitSets';
 import { meshToBinaryStl } from './stl';
@@ -21,6 +26,9 @@ async function buildManifold(request: GeometryRequest): Promise<{
   }
   if (request.model.kind === 'bin') {
     return { m, result: buildBin(m, spec, request.model) };
+  }
+  if (request.model.kind === 'screwOrganizer') {
+    return { m, result: buildScrewOrganizer(m, spec, request.model) };
   }
 
   const bits = bitsForSet(request.model.bitSet, request.model.customBits);

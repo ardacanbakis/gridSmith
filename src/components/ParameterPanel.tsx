@@ -3,6 +3,7 @@ import {
   BaseplateParamsSchema,
   BinParamsSchema,
   DrillBitHolderParamsSchema,
+  ScrewOrganizerParamsSchema,
   type LabelStyle,
   type BitSetId,
 } from '@/lib/params/schema';
@@ -142,6 +143,7 @@ export function ParameterPanel() {
               { value: 'bin', label: 'Bin' },
               { value: 'baseplate', label: 'Baseplate' },
               { value: 'drillBitHolder', label: 'Drill bits' },
+              { value: 'screwOrganizer', label: 'Screws' },
             ]}
           />
         </Section>
@@ -177,7 +179,105 @@ export function ParameterPanel() {
           )}
         </Section>
 
-        {model.kind === 'drillBitHolder' ? (
+        {model.kind === 'screwOrganizer' ? (
+          <>
+            <Section title="Organizer size">
+              <NumberField
+                label="Cells X"
+                value={model.cellsX}
+                min={1}
+                max={10}
+                onChange={(v) => setModel(ScrewOrganizerParamsSchema.parse({ ...model, cellsX: v }))}
+              />
+              <NumberField
+                label="Cells Y"
+                value={model.cellsY}
+                min={1}
+                max={10}
+                onChange={(v) => setModel(ScrewOrganizerParamsSchema.parse({ ...model, cellsY: v }))}
+              />
+              <NumberField
+                label="Height (units)"
+                value={model.heightUnits}
+                min={2}
+                max={20}
+                onChange={(v) => setModel(ScrewOrganizerParamsSchema.parse({ ...model, heightUnits: v }))}
+                format={(v) => `${v} × ${spec.heightUnit} mm = ${fmtLength(v * spec.heightUnit, units, 1)}`}
+              />
+            </Section>
+
+            <Section title="Compartments">
+              <NumberField
+                label="Columns"
+                value={model.cols}
+                min={1}
+                max={10}
+                onChange={(v) => setModel(ScrewOrganizerParamsSchema.parse({ ...model, cols: v }))}
+                suffix={`= ${model.cols} across`}
+              />
+              <NumberField
+                label="Rows"
+                value={model.rows}
+                min={1}
+                max={10}
+                onChange={(v) => setModel(ScrewOrganizerParamsSchema.parse({ ...model, rows: v }))}
+                suffix={`= ${model.rows} deep`}
+              />
+              <NumberField
+                label="Wall thickness"
+                value={model.wallThickness}
+                min={0.8}
+                max={3}
+                step={0.1}
+                onChange={(v) => setModel(ScrewOrganizerParamsSchema.parse({ ...model, wallThickness: v }))}
+                format={len(2)}
+              />
+              <NumberField
+                label="Back tilt"
+                value={model.tiltDegrees}
+                min={0}
+                max={20}
+                step={0.5}
+                onChange={(v) => setModel(ScrewOrganizerParamsSchema.parse({ ...model, tiltDegrees: v }))}
+                suffix="°"
+              />
+              <p className="text-xs text-text-dim leading-snug">
+                Wedges at the back of each compartment so loose screws roll forward by gravity.
+                Set to 0 for a flat floor.
+              </p>
+            </Section>
+
+            <Section title="Label">
+              <SegmentedControl<LabelStyle>
+                value={model.labelStyle}
+                onChange={(v) => setModel(ScrewOrganizerParamsSchema.parse({ ...model, labelStyle: v }))}
+                options={[
+                  { value: 'none', label: 'None' },
+                  { value: 'paperPocket', label: 'Paper' },
+                  { value: 'clipTab', label: 'Clip tab' },
+                ]}
+              />
+            </Section>
+
+            <Section title="Finish">
+              <Toggle
+                label="Stacking lip"
+                value={model.stackingLip}
+                onChange={(v) => setModel(ScrewOrganizerParamsSchema.parse({ ...model, stackingLip: v }))}
+              />
+              <Toggle
+                label="Magnet holes"
+                value={model.magnetHoles}
+                onChange={(v) => setModel(ScrewOrganizerParamsSchema.parse({ ...model, magnetHoles: v }))}
+              />
+              <Toggle
+                label="Screw holes"
+                value={model.screwHoles}
+                onChange={(v) => setModel(ScrewOrganizerParamsSchema.parse({ ...model, screwHoles: v }))}
+              />
+            </Section>
+          </>
+        ) : model.kind === 'drillBitHolder' ? (
           <>
             <Section title="Holder size">
               <NumberField

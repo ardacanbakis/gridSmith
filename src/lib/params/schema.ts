@@ -60,10 +60,27 @@ export const DrillBitHolderParamsSchema = z.object({
 });
 export type DrillBitHolderParams = z.infer<typeof DrillBitHolderParamsSchema>;
 
+export const ScrewOrganizerParamsSchema = z.object({
+  kind: z.literal('screwOrganizer'),
+  cellsX: z.number().int().min(1).max(20).default(3),
+  cellsY: z.number().int().min(1).max(20).default(2),
+  heightUnits: z.number().int().min(2).max(30).default(4),
+  wallThickness: z.number().min(0.8).max(4).default(1.2),
+  cols: z.number().int().min(1).max(10).default(4),
+  rows: z.number().int().min(1).max(10).default(2),
+  stackingLip: z.boolean().default(true),
+  magnetHoles: z.boolean().default(false),
+  screwHoles: z.boolean().default(false),
+  labelStyle: LabelStyleSchema.default('clipTab'),
+  tiltDegrees: z.number().min(0).max(20).default(8),
+});
+export type ScrewOrganizerParams = z.infer<typeof ScrewOrganizerParamsSchema>;
+
 export const ModelParamsSchema = z.discriminatedUnion('kind', [
   BaseplateParamsSchema,
   BinParamsSchema,
   DrillBitHolderParamsSchema,
+  ScrewOrganizerParamsSchema,
 ]);
 export type ModelParams = z.infer<typeof ModelParamsSchema>;
 

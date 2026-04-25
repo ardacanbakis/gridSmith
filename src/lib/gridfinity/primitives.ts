@@ -335,6 +335,144 @@ function addClipTabSlot(
   return bin.subtract(slot);
 }
 
+export type ScrewOrganizerOptions = {
+  cellsX: number;
+  cellsY: number;
+  heightUnits: number;
+  wallThickness: number;
+  cols: number;
+  rows: number;
+  stackingLip: boolean;
+  magnetHoles: boolean;
+  screwHoles: boolean;
+  labelStyle: LabelStyle;
+  tiltDegrees: number;
+};
+
+/**
+ * Screw organiser: a divided bin where each compartment gets an optional
+ * back-tilt wedge so loose screws roll to the front for easy scooping.
+ */
+export function buildScrewOrganizer(
+  m: ManifoldToplevel,
+  spec: Spec,
+  opts: ScrewOrganizerOptions,
+): Manifold {
+  const { gridUnit, clearance, heightUnit, baseProfile, stackLip } = spec;
+  const outerW = opts.cellsX * gridUnit - clearance;
+  const outerD = opts.cellsY * gridUnit - clearance;
+  const totalH = opts.heightUnits * heightUnit;
+  const baseH = baseProfile.totalHeight;
+
+  const baseTiled = tileGrid(binBaseUnit(m, spec), opts.cellsX, opts.cellsY, gridUnit);
+  const bodyHeight = totalH - baseH;
+  const body = m.Manifold.cube([outerW, outerD, bodyHeight], true)
+    .translate([0, 0, baseH + bodyHeight / 2]);
+
+  let bin = baseTiled.add(body);
+
+  const wall = opts.wallThickness;
+  const floorZ = baseH + wall;
+  const cavityHeight = totalH - floorZ;
+  const cavities = buildCavities(m, outerW, outerD, wall, floorZ, cavityHeight, opts.cols, opts.rows);
+  bin = bin.subtract(cavities);
+
+  if (opts.tiltDegrees > 0) {
+    const wedges = buildBackTiltWedges(
+      m,
+      outerW,
+      outerD,
+      wall,
+      floorZ,
+      cavityHeight,
+      opts.cols,
+      opts.rows,
+      opts.tiltDegrees,
+    );
+    if (wedges) bin = bin.add(wedges);
+  }
+
+  if (opts.labelStyle === 'paperPocket') {
+    bin = addPaperPocket(m, bin, outerW, outerD, wall, totalH);
+  } else if (opts.labelStyle === 'clipTab') {
+    bin = addClipTabSlot(m, bin, outerW, outerD, wall, totalH);
+  }
+
+  if (opts.stackingLip) {
+    const lipOuter = m.Manifold.cube([outerW, outerD, stackLip.height], true)
+      .translate([0, 0, totalH + stackLip.height / 2]);
+    const lipInner = m.Manifold.cube(
+      [outerW - 2 * wall, outerD - 2 * wall, stackLip.height + 0.1],
+      true,
+    ).translate([0, 0, totalH + stackLip.height / 2]);
+    bin = bin.add(lipOuter.subtract(lipInner));
+  }
+
+  if (opts.magnetHoles || opts.screwHoles) {
+    const holes = magnetAndScrewHoles(
+      m,
+      spec,
+      opts.cellsX,
+      opts.cellsY,
+      opts.magnetHoles,
+      opts.screwHoles,
+      baseH,
+    );
+    if (holes) bin = bin.subtract(holes);
+  }
+
+  return bin;
+}
+
+/**
+ * Triangular prism at the +Y wall of each compartment, tapering from a thin
+ * edge at the front (-Y) to a wedge of `tan(tiltDegrees) * cellD` at the back.
+ * Items roll forward by gravity.
+ */
+function buildBackTiltWedges(
+  m: ManifoldToplevel,
+  outerW: number,
+  outerD: number,
+  wall: number,
+  floorZ: number,
+  cavityH: number,
+  divX: number,
+  divY: number,
+  tiltDegrees: number,
+): Manifold | null {
+  const innerW = outerW - 2 * wall;
+  const innerD = outerD - 2 * wall;
+  const cellW = (innerW - (divX - 1) * wall) / divX;
+  const cellD = (innerD - (divY - 1) * wall) / divY;
+  const startX = -innerW / 2 + cellW / 2;
+  const startY = -innerD / 2 + cellD / 2;
+
+  const tilt = (tiltDegrees * Math.PI) / 180;
+  const rise = Math.min(Math.tan(tilt) * cellD, cavityH - 0.5);
+  if (rise <= 0.2) return null;
+
+  const polys: [number, number][][] = [[
+    [0, 0],
+    [cellD, 0],
+    [cellD, rise],
+  ]];
+  const triCross = m.CrossSection.ofPolygons(polys);
+  const wedge = triCross
+    .extrude(cellW)
+    .rotate([90, 0, 90]);
+
+  let acc: Manifold | null = null;
+  for (let j = 0; j < divY; j++) {
+    for (let i = 0; i < divX; i++) {
+      const cx = startX + i * (cellW + wall);
+      const cy = startY + j * (cellD + wall);
+      const piece = wedge.translate([cx - cellW / 2, cy - cellD / 2, floorZ]);
+      acc = acc ? acc.add(piece) : piece;
+    }
+  }
+  return acc;
+}
+
 export type DrillHole = {
   /** Hole centre X, in bin-local coordinates (bin is centred on origin). */
   x: number;
