@@ -1,5 +1,7 @@
 import type { ManifoldToplevel, Manifold } from 'manifold-3d';
 import type { Spec } from './spec';
+import type { Polygon } from '@/lib/labels/textToPolygons';
+import { buildTextManifold } from '@/lib/labels/emboss';
 
 function roundedSquare(m: ManifoldToplevel, size: number, radius: number) {
   const inner = Math.max(0.01, size - 2 * radius);
@@ -118,7 +120,12 @@ function magnetAndScrewHoles(
   return acc;
 }
 
-export type LabelStyle = 'none' | 'paperPocket' | 'clipTab';
+export type LabelStyle = 'none' | 'paperPocket' | 'clipTab' | 'embossText' | 'engraveText';
+
+export type LabelTextData = {
+  polygons: ReadonlyArray<Polygon>;
+  depth: number;
+};
 
 export type BinOptions = {
   cellsX: number;
@@ -133,6 +140,8 @@ export type BinOptions = {
   divX: number;
   divY: number;
   labelStyle: LabelStyle;
+  /** Pre-tessellated text polygons (mm, centred on origin), passed in by the worker. */
+  labelText?: LabelTextData;
 };
 
 export function buildBin(m: ManifoldToplevel, spec: Spec, opts: BinOptions): Manifold {
@@ -185,6 +194,8 @@ export function buildBin(m: ManifoldToplevel, spec: Spec, opts: BinOptions): Man
       bin = addPaperPocket(m, bin, outerW, outerD, opts.wallThickness, totalH);
     } else if (opts.labelStyle === 'clipTab') {
       bin = addClipTabSlot(m, bin, outerW, outerD, opts.wallThickness, totalH);
+    } else if ((opts.labelStyle === 'embossText' || opts.labelStyle === 'engraveText') && opts.labelText) {
+      bin = applyTextLabel(m, bin, outerD, totalH, opts.labelStyle === 'engraveText', opts.labelText);
     }
   }
 
@@ -346,6 +357,7 @@ export type ScrewOrganizerOptions = {
   magnetHoles: boolean;
   screwHoles: boolean;
   labelStyle: LabelStyle;
+  labelText?: LabelTextData;
   tiltDegrees: number;
 };
 
@@ -396,6 +408,8 @@ export function buildScrewOrganizer(
     bin = addPaperPocket(m, bin, outerW, outerD, wall, totalH);
   } else if (opts.labelStyle === 'clipTab') {
     bin = addClipTabSlot(m, bin, outerW, outerD, wall, totalH);
+  } else if ((opts.labelStyle === 'embossText' || opts.labelStyle === 'engraveText') && opts.labelText) {
+    bin = applyTextLabel(m, bin, outerD, totalH, opts.labelStyle === 'engraveText', opts.labelText);
   }
 
   if (opts.stackingLip) {
@@ -422,6 +436,29 @@ export function buildScrewOrganizer(
   }
 
   return bin;
+}
+
+/**
+ * Place embossed (added) or engraved (subtracted) text on the front (-Y) wall
+ * of a bin. Text is built in XY then rotated so its plane normal points -Y,
+ * then translated to sit on the front face, vertically centred.
+ */
+function applyTextLabel(
+  m: ManifoldToplevel,
+  bin: Manifold,
+  outerD: number,
+  totalH: number,
+  engrave: boolean,
+  text: LabelTextData,
+): Manifold {
+  const block = buildTextManifold(m, text);
+  if (!block) return bin;
+
+  const oriented = block
+    .rotate([90, 0, 0])
+    .translate([0, -outerD / 2 + (engrave ? text.depth / 2 : -text.depth / 2), totalH / 2]);
+
+  return engrave ? bin.subtract(oriented) : bin.add(oriented);
 }
 
 /**

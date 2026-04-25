@@ -254,9 +254,51 @@ export function ParameterPanel() {
                 options={[
                   { value: 'none', label: 'None' },
                   { value: 'paperPocket', label: 'Paper' },
-                  { value: 'clipTab', label: 'Clip tab' },
+                  { value: 'clipTab', label: 'Clip' },
+                  { value: 'embossText', label: 'Emboss' },
+                  { value: 'engraveText', label: 'Engrave' },
                 ]}
               />
+              {(model.labelStyle === 'embossText' || model.labelStyle === 'engraveText') && (
+                <>
+                  <label className="flex flex-col gap-1">
+                    <span className="label normal-case">Text</span>
+                    <input
+                      className="input"
+                      type="text"
+                      maxLength={40}
+                      value={model.labelText}
+                      onChange={(e) =>
+                        setModel(
+                          ScrewOrganizerParamsSchema.parse({ ...model, labelText: e.target.value }),
+                        )
+                      }
+                    />
+                  </label>
+                  <NumberField
+                    label="Text height"
+                    value={model.labelHeight}
+                    min={2}
+                    max={20}
+                    step={0.5}
+                    onChange={(v) =>
+                      setModel(ScrewOrganizerParamsSchema.parse({ ...model, labelHeight: v }))
+                    }
+                    format={len(1)}
+                  />
+                  <NumberField
+                    label={model.labelStyle === 'engraveText' ? 'Engrave depth' : 'Emboss height'}
+                    value={model.labelDepth}
+                    min={0.2}
+                    max={2.5}
+                    step={0.1}
+                    onChange={(v) =>
+                      setModel(ScrewOrganizerParamsSchema.parse({ ...model, labelDepth: v }))
+                    }
+                    format={len(2)}
+                  />
+                </>
+              )}
             </Section>
 
             <Section title="Finish">
@@ -504,12 +546,52 @@ export function ParameterPanel() {
                 options={[
                   { value: 'none', label: 'None' },
                   { value: 'paperPocket', label: 'Paper' },
-                  { value: 'clipTab', label: 'Clip tab' },
+                  { value: 'clipTab', label: 'Clip' },
+                  { value: 'embossText', label: 'Emboss' },
+                  { value: 'engraveText', label: 'Engrave' },
                 ]}
               />
+              {(model.labelStyle === 'embossText' || model.labelStyle === 'engraveText') && (
+                <>
+                  <label className="flex flex-col gap-1">
+                    <span className="label normal-case">Text</span>
+                    <input
+                      className="input"
+                      type="text"
+                      maxLength={40}
+                      value={model.labelText}
+                      onChange={(e) =>
+                        setModel(BinParamsSchema.parse({ ...model, labelText: e.target.value }))
+                      }
+                    />
+                  </label>
+                  <NumberField
+                    label="Text height"
+                    value={model.labelHeight}
+                    min={2}
+                    max={20}
+                    step={0.5}
+                    onChange={(v) =>
+                      setModel(BinParamsSchema.parse({ ...model, labelHeight: v }))
+                    }
+                    format={len(1)}
+                  />
+                  <NumberField
+                    label={model.labelStyle === 'engraveText' ? 'Engrave depth' : 'Emboss height'}
+                    value={model.labelDepth}
+                    min={0.2}
+                    max={2.5}
+                    step={0.1}
+                    onChange={(v) =>
+                      setModel(BinParamsSchema.parse({ ...model, labelDepth: v }))
+                    }
+                    format={len(2)}
+                  />
+                </>
+              )}
               <p className="text-xs text-text-dim leading-snug">
-                Paper: recessed pocket on the front wall. Clip tab: slot at the top front lip
-                for printed swap labels. Embossed text coming next.
+                Paper: recessed pocket. Clip: top-lip slot for printed labels.
+                Emboss/Engrave: text rendered with Inter Bold, written/cut into the front face.
               </p>
             </Section>
 

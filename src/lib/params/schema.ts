@@ -3,7 +3,7 @@ import { z } from 'zod';
 export const UnitsSchema = z.enum(['metric', 'imperial']);
 export type Units = z.infer<typeof UnitsSchema>;
 
-export const LabelStyleSchema = z.enum(['none', 'paperPocket', 'clipTab']);
+export const LabelStyleSchema = z.enum(['none', 'paperPocket', 'clipTab', 'embossText', 'engraveText']);
 export type LabelStyle = z.infer<typeof LabelStyleSchema>;
 
 export const BitSetIdSchema = z.enum([
@@ -40,6 +40,9 @@ export const BinParamsSchema = z.object({
   divX: z.number().int().min(1).max(10).default(1),
   divY: z.number().int().min(1).max(10).default(1),
   labelStyle: LabelStyleSchema.default('none'),
+  labelText: z.string().max(40).default('Label'),
+  labelHeight: z.number().min(2).max(20).default(6),
+  labelDepth: z.number().min(0.2).max(2.5).default(0.6),
 });
 export type BinParams = z.infer<typeof BinParamsSchema>;
 
@@ -72,6 +75,9 @@ export const ScrewOrganizerParamsSchema = z.object({
   magnetHoles: z.boolean().default(false),
   screwHoles: z.boolean().default(false),
   labelStyle: LabelStyleSchema.default('clipTab'),
+  labelText: z.string().max(40).default('SCREWS'),
+  labelHeight: z.number().min(2).max(20).default(5),
+  labelDepth: z.number().min(0.2).max(2.5).default(0.6),
   tiltDegrees: z.number().min(0).max(20).default(8),
 });
 export type ScrewOrganizerParams = z.infer<typeof ScrewOrganizerParamsSchema>;

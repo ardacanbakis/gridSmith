@@ -5,13 +5,32 @@ import {
   buildBin,
   buildDrillBitHolder,
   buildScrewOrganizer,
+  type LabelTextData,
 } from '@/lib/gridfinity/primitives';
+import { getLabelFont } from '@/lib/labels/font';
+import { textToPolygons } from '@/lib/labels/textToPolygons';
+import type { LabelStyle } from '@/lib/params/schema';
 import { buildSpec } from '@/lib/gridfinity/spec';
 import { bitsForSet } from '@/lib/gridfinity/bitSets';
 import { meshToBinaryStl } from './stl';
 import { meshTo3mf } from './threeMf';
 import type { GeometryRequest, GeometryResponse, GeometryWorkerApi, MeshData, BuildStats } from './types';
 import type { Manifold, ManifoldToplevel } from 'manifold-3d';
+
+async function maybeBuildLabelText(
+  style: LabelStyle,
+  text: string,
+  heightMm: number,
+  depth: number,
+): Promise<LabelTextData | undefined> {
+  if (style !== 'embossText' && style !== 'engraveText') return undefined;
+  const trimmed = text.trim();
+  if (!trimmed) return undefined;
+  const font = await getLabelFont();
+  const polygons = textToPolygons(font, trimmed, heightMm);
+  if (polygons.length === 0) return undefined;
+  return { polygons, depth };
+}
 
 async function buildManifold(request: GeometryRequest): Promise<{
   m: ManifoldToplevel;
@@ -25,10 +44,22 @@ async function buildManifold(request: GeometryRequest): Promise<{
     return { m, result: buildBaseplate(m, spec, request.model) };
   }
   if (request.model.kind === 'bin') {
-    return { m, result: buildBin(m, spec, request.model) };
+    const labelText = await maybeBuildLabelText(
+      request.model.labelStyle,
+      request.model.labelText,
+      request.model.labelHeight,
+      request.model.labelDepth,
+    );
+    return { m, result: buildBin(m, spec, { ...request.model, labelText }) };
   }
   if (request.model.kind === 'screwOrganizer') {
-    return { m, result: buildScrewOrganizer(m, spec, request.model) };
+    const labelText = await maybeBuildLabelText(
+      request.model.labelStyle,
+      request.model.labelText,
+      request.model.labelHeight,
+      request.model.labelDepth,
+    );
+    return { m, result: buildScrewOrganizer(m, spec, { ...request.model, labelText }) };
   }
 
   const bits = bitsForSet(request.model.bitSet, request.model.customBits);
