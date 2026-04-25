@@ -10,10 +10,33 @@
       content="Parametric Gridfinity studio. Design custom bins, baseplates, drill-bit holders, screw organizers and more. Export STL, 3MF, STEP."
     />
     <link rel="icon" type="image/svg+xml" href="./favicon.svg" />
+    <script>
+      // Coordinate the COI shim so it reloads at most once per session
+      // (avoids any chance of an infinite-reload loop on flaky SW activation).
+      window.coi = {
+        quiet: false,
+        shouldRegister: () => !sessionStorage.getItem('coi-reloaded'),
+        doReload: () => {
+          sessionStorage.setItem('coi-reloaded', '1');
+          window.location.reload();
+        },
+      };
+    </script>
     <script src="./coi-serviceworker.js"></script>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <noscript>
+        <div style="padding: 2rem; font-family: system-ui; text-align: center;">
+          Gridsmith needs JavaScript enabled to run.
+        </div>
+      </noscript>
+      <div id="boot-fallback" style="padding: 2rem; font-family: system-ui; color: #6B7280; text-align: center;">
+        Loading Gridsmith…
+        <br />
+        <small style="font-size: 0.8rem;">If this persists, open the browser console and check for errors.</small>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
