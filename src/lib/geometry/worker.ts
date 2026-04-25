@@ -4,6 +4,7 @@ import { buildBaseplate, buildBin, buildDrillBitHolder } from '@/lib/gridfinity/
 import { buildSpec } from '@/lib/gridfinity/spec';
 import { bitsForSet } from '@/lib/gridfinity/bitSets';
 import { meshToBinaryStl } from './stl';
+import { meshTo3mf } from './threeMf';
 import type { GeometryRequest, GeometryResponse, GeometryWorkerApi, MeshData, BuildStats } from './types';
 import type { Manifold, ManifoldToplevel } from 'manifold-3d';
 
@@ -84,6 +85,13 @@ const api: GeometryWorkerApi = {
     const mesh = toMeshData(result);
     result.delete();
     return meshToBinaryStl(mesh);
+  },
+
+  async exportThreeMf(request: GeometryRequest): Promise<ArrayBuffer> {
+    const { result } = await buildManifold(request);
+    const mesh = toMeshData(result);
+    result.delete();
+    return meshTo3mf(mesh, `gridsmith-${request.model.kind}`);
   },
 };
 

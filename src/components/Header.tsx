@@ -1,15 +1,34 @@
+import { useEffect, useRef, useState } from 'react';
 import { useDesignStore } from '@/store/designStore';
 import { useThemeStore } from '@/store/themeStore';
 import { shareableUrl } from '@/lib/params/url';
+import type { ExportFormat } from '@/lib/geometry/types';
 
 type Props = {
-  onExportStl: () => void;
+  onExport: (format: ExportFormat) => void;
   exporting: boolean;
 };
 
-export function Header({ onExportStl, exporting }: Props) {
+const FORMATS: Array<{ id: ExportFormat; label: string; hint: string }> = [
+  { id: 'stl', label: 'STL', hint: 'Universal slicer-ready mesh.' },
+  { id: '3mf', label: '3MF', hint: 'Lossless, multi-material capable.' },
+];
+
+export function Header({ onExport, exporting }: Props) {
   const { design, setUnits } = useDesignStore();
   const { theme, toggle } = useThemeStore();
+  const [format, setFormat] = useState<ExportFormat>('stl');
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const onDocClick = (e: MouseEvent) => {
+      if (!menuRef.current?.contains(e.target as Node)) setMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, [menuOpen]);
 
   const onShare = async () => {
     const url = shareableUrl(design);
@@ -19,6 +38,8 @@ export function Header({ onExportStl, exporting }: Props) {
       window.prompt('Copy share link', url);
     }
   };
+
+  const activeFormat = FORMATS.find((f) => f.id === format)!;
 
   return (
     <header className="flex items-center justify-between px-4 h-12 border-b border-border bg-bg-panel shrink-0">
@@ -47,6 +68,7 @@ export function Header({ onExportStl, exporting }: Props) {
             in
           </button>
         </div>
+
         <button
           className="btn"
           onClick={toggle}
@@ -55,12 +77,48 @@ export function Header({ onExportStl, exporting }: Props) {
         >
           {theme === 'dark' ? 'Light' : 'Dark'}
         </button>
+
         <button className="btn" onClick={onShare}>
           Share
         </button>
-        <button className="btn-primary" onClick={onExportStl} disabled={exporting}>
-          {exporting ? 'Exporting…' : 'Export STL'}
-        </button>
+
+        <div ref={menuRef} className="relative flex">
+          <button
+            className="btn-primary rounded-r-none"
+            onClick={() => onExport(format)}
+            disabled={exporting}
+          >
+            {exporting ? 'Exporting…' : `Export ${activeFormat.label}`}
+          </button>
+          <button
+            className="btn-primary rounded-l-none border-l border-accent-fg/30 px-2"
+            onClick={() => setMenuOpen((o) => !o)}
+            disabled={exporting}
+            aria-label="Pick export format"
+          >
+            ▾
+          </button>
+          {menuOpen && (
+            <div className="absolute right-0 top-full mt-1 panel rounded shadow-lg w-56 z-10">
+              {FORMATS.map((f) => (
+                <button
+                  key={f.id}
+                  className="w-full text-left px-3 py-2 hover:bg-bg-elevated flex flex-col gap-0.5"
+                  onClick={() => {
+                    setFormat(f.id);
+                    setMenuOpen(false);
+                  }}
+                >
+                  <span className="text-sm font-medium">
+                    {f.label}
+                    {format === f.id && <span className="ml-2 text-xs text-accent">✓</span>}
+                  </span>
+                  <span className="text-xs text-text-dim">{f.hint}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     </header>
   );

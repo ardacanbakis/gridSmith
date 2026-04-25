@@ -4,7 +4,7 @@ import { ParameterPanel } from './components/ParameterPanel';
 import { Viewport } from './components/Viewport';
 import { useDesignStore } from './store/designStore';
 import { getWorker } from './lib/geometry/workerClient';
-import type { BuildStats, MeshData } from './lib/geometry/types';
+import type { BuildStats, ExportFormat, MeshData } from './lib/geometry/types';
 import { downloadBlob } from './lib/geometry/stl';
 
 export default function App() {
@@ -41,12 +41,17 @@ export default function App() {
       });
   }, [design.model, design.spec]);
 
-  const onExportStl = async () => {
+  const onExport = async (format: ExportFormat) => {
     setExporting(true);
     try {
-      const buffer = await getWorker().exportStl({ model: design.model, spec: design.spec });
-      const name = filenameFor(design.model);
-      downloadBlob(buffer, name, 'model/stl');
+      const worker = getWorker();
+      const request = { model: design.model, spec: design.spec };
+      const buffer = format === '3mf'
+        ? await worker.exportThreeMf(request)
+        : await worker.exportStl(request);
+      const name = filenameFor(design.model, format);
+      const mime = format === '3mf' ? 'model/3mf' : 'model/stl';
+      downloadBlob(buffer, name, mime);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -56,7 +61,7 @@ export default function App() {
 
   return (
     <div className="h-full flex flex-col">
-      <Header onExportStl={onExportStl} exporting={exporting} />
+      <Header onExport={onExport} exporting={exporting} />
       <div className="flex-1 flex min-h-0">
         <ParameterPanel />
         <main className="flex-1 relative">
@@ -80,6 +85,9 @@ export default function App() {
   );
 }
 
-function filenameFor(model: { kind: string; cellsX: number; cellsY: number }): string {
-  return `gridsmith-${model.kind}-${model.cellsX}x${model.cellsY}.stl`;
+function filenameFor(
+  model: { kind: string; cellsX: number; cellsY: number },
+  format: ExportFormat,
+): string {
+  return `gridsmith-${model.kind}-${model.cellsX}x${model.cellsY}.${format}`;
 }
