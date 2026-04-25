@@ -15,8 +15,15 @@ describe('bitsForSet', () => {
     expect(bits.map((b) => b.mm)).toEqual([2.5, 3, 4]);
   });
 
-  it('exposes five non-custom presets', () => {
-    expect(Object.keys(BIT_SETS)).toHaveLength(5);
+  it('exposes ten non-custom presets', () => {
+    expect(Object.keys(BIT_SETS)).toHaveLength(10);
+  });
+
+  it('router shank set has uniform diameters', () => {
+    const set = BIT_SETS['router-quarter'];
+    const unique = new Set(set.diameters.map((d) => d.mm));
+    expect(unique.size).toBe(1);
+    expect([...unique][0]).toBeCloseTo(6.35, 5);
   });
 });
 

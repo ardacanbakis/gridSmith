@@ -8,6 +8,7 @@ import {
 } from '@/lib/params/schema';
 import { STANDARD, isStandardSpec } from '@/lib/gridfinity/spec';
 import { BIT_SETS } from '@/lib/gridfinity/bitSets';
+import { fmtLength } from '@/lib/units';
 
 function Section({ title, children, right }: { title: string; children: React.ReactNode; right?: React.ReactNode }) {
   return (
@@ -30,6 +31,7 @@ function NumberField({
   onChange,
   suffix,
   disabled,
+  format,
 }: {
   label: string;
   value: number;
@@ -39,15 +41,14 @@ function NumberField({
   onChange: (v: number) => void;
   suffix?: string;
   disabled?: boolean;
+  format?: (v: number) => string;
 }) {
+  const display = format ? format(value) : `${value}${suffix ? ` ${suffix}` : ''}`;
   return (
     <label className="flex flex-col gap-1">
       <span className="label flex justify-between normal-case">
         <span>{label}</span>
-        <span className="tabular text-text">
-          {value}
-          {suffix ? ` ${suffix}` : ''}
-        </span>
+        <span className="tabular text-text">{display}</span>
       </span>
       <input
         type="range"
@@ -122,8 +123,9 @@ function SegmentedControl<T extends string>({
 
 export function ParameterPanel() {
   const { design, setModel, switchKind, setSpec } = useDesignStore();
-  const { model, spec } = design;
+  const { model, spec, units } = design;
   const specIsStandard = isStandardSpec(spec.gridUnit, spec.heightUnit);
+  const len = (digits = 1) => (v: number) => fmtLength(v, units, digits);
 
   return (
     <aside className="w-80 shrink-0 panel border-r flex flex-col">
@@ -155,7 +157,7 @@ export function ParameterPanel() {
             max={120}
             step={0.5}
             onChange={(v) => setSpec({ gridUnit: v })}
-            suffix="mm"
+            format={len(1)}
           />
           <NumberField
             label="Height unit"
@@ -164,7 +166,7 @@ export function ParameterPanel() {
             max={30}
             step={0.5}
             onChange={(v) => setSpec({ heightUnit: v })}
-            suffix="mm"
+            format={len(1)}
           />
           {!specIsStandard && (
             <p className="text-xs text-warn leading-snug">
@@ -198,7 +200,7 @@ export function ParameterPanel() {
                 min={2}
                 max={20}
                 onChange={(v) => setModel(DrillBitHolderParamsSchema.parse({ ...model, heightUnits: v }))}
-                suffix={`= ${(model.heightUnits * spec.heightUnit).toFixed(1)} mm`}
+                format={(v) => `${v} × ${spec.heightUnit} mm = ${fmtLength(v * spec.heightUnit, units, 1)}`}
               />
             </Section>
 
@@ -257,7 +259,7 @@ export function ParameterPanel() {
                 onChange={(v) =>
                   setModel(DrillBitHolderParamsSchema.parse({ ...model, holeDepth: v }))
                 }
-                suffix="mm"
+                format={len(1)}
               />
               <NumberField
                 label="Radial clearance"
@@ -268,7 +270,7 @@ export function ParameterPanel() {
                 onChange={(v) =>
                   setModel(DrillBitHolderParamsSchema.parse({ ...model, clearance: v }))
                 }
-                suffix="mm"
+                format={len(2)}
               />
               <NumberField
                 label="Hole-to-hole spacing"
@@ -279,7 +281,7 @@ export function ParameterPanel() {
                 onChange={(v) =>
                   setModel(DrillBitHolderParamsSchema.parse({ ...model, spacing: v }))
                 }
-                suffix="mm"
+                format={len(2)}
               />
               <NumberField
                 label="Edge clearance"
@@ -290,7 +292,7 @@ export function ParameterPanel() {
                 onChange={(v) =>
                   setModel(DrillBitHolderParamsSchema.parse({ ...model, edgeClearance: v }))
                 }
-                suffix="mm"
+                format={len(1)}
               />
             </Section>
 
@@ -341,7 +343,7 @@ export function ParameterPanel() {
                 min={2}
                 max={20}
                 onChange={(v) => setModel(BinParamsSchema.parse({ ...model, heightUnits: v }))}
-                suffix={`= ${(model.heightUnits * spec.heightUnit).toFixed(1)} mm`}
+                format={(v) => `${v} × ${spec.heightUnit} mm = ${fmtLength(v * spec.heightUnit, units, 1)}`}
               />
             </Section>
 
@@ -359,7 +361,7 @@ export function ParameterPanel() {
                 step={0.1}
                 disabled={!model.hollow}
                 onChange={(v) => setModel(BinParamsSchema.parse({ ...model, wallThickness: v }))}
-                suffix="mm"
+                format={len(2)}
               />
               <Toggle
                 label="Stacking lip"

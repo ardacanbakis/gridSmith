@@ -10,6 +10,11 @@ export type BitSetId =
   | 'fractional-inch'
   | 'letter'
   | 'number'
+  | 'router-quarter'
+  | 'router-eighth'
+  | 'router-6mm'
+  | 'router-8mm'
+  | 'router-12mm'
   | 'custom';
 
 export type BitSet = {
@@ -83,6 +88,19 @@ const NUMBER: ReadonlyArray<{ mm: number; label: string }> = NUMBER_SIZES_IN.map
   ([num, inches]) => ({ mm: inches * MM_PER_INCH, label: `#${num}` }),
 );
 
+function routerShank(id: Exclude<BitSetId, 'custom'>, label: string, mmDiameter: number, count: number, displayLabel: string): BitSet {
+  const diameters: Array<{ mm: number; label: string }> = [];
+  for (let i = 1; i <= count; i++) {
+    diameters.push({ mm: mmDiameter, label: `${displayLabel} #${i}` });
+  }
+  return {
+    id,
+    label,
+    description: `${count} pockets sized for a ${displayLabel} shank.`,
+    diameters,
+  };
+}
+
 export const BIT_SETS: Record<Exclude<BitSetId, 'custom'>, BitSet> = {
   'metric-basic': {
     id: 'metric-basic',
@@ -114,6 +132,11 @@ export const BIT_SETS: Record<Exclude<BitSetId, 'custom'>, BitSet> = {
     description: 'Wire gauge, 30 bits.',
     diameters: NUMBER,
   },
+  'router-quarter': routerShank('router-quarter', 'Router 1/4" shank ×12', 6.35, 12, '1/4"'),
+  'router-eighth': routerShank('router-eighth', 'Router 1/8" shank ×16', 3.175, 16, '1/8"'),
+  'router-6mm': routerShank('router-6mm', 'Router 6 mm shank ×12', 6, 12, '6 mm'),
+  'router-8mm': routerShank('router-8mm', 'Router 8 mm shank ×9', 8, 9, '8 mm'),
+  'router-12mm': routerShank('router-12mm', 'Router 12 mm shank ×6', 12, 6, '12 mm'),
 };
 
 export function bitsForSet(id: BitSetId, customMm: ReadonlyArray<number>): ReadonlyArray<{ mm: number; label: string }> {
