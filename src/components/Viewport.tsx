@@ -20,6 +20,8 @@ type Props = {
   mesh: MeshData | null;
   loading: boolean;
   gridUnit: number;
+  /** Camera initial position; lets the duo viewport place a second view at a different angle. */
+  cameraPosition?: [number, number, number];
 };
 
 function PartMesh({ data, color }: { data: MeshData; color: string }) {
@@ -43,6 +45,38 @@ function PartMesh({ data, color }: { data: MeshData; color: string }) {
         envMapIntensity={0.6}
       />
     </mesh>
+  );
+}
+
+function ExtendedGrid({
+  cellSize,
+  themeKey,
+}: {
+  cellSize: number;
+  themeKey: string;
+}) {
+  const colors = useMemo(
+    () => ({
+      gridMinor: readCssVarRgb('grid-minor', '#2A2F3A'),
+      gridMajor: readCssVarRgb('grid-major', '#3A4150'),
+    }),
+    [themeKey],
+  );
+  return (
+    <Grid
+      position={[0, -0.02, 0]}
+      args={[10000, 10000]}
+      cellSize={cellSize}
+      cellThickness={0.4}
+      cellColor={colors.gridMinor}
+      sectionSize={cellSize * 5}
+      sectionThickness={0.7}
+      sectionColor={colors.gridMajor}
+      fadeDistance={1200}
+      fadeStrength={1.5}
+      followCamera={false}
+      infiniteGrid
+    />
   );
 }
 
@@ -76,9 +110,7 @@ function BuildPlate({
         <meshStandardMaterial color={colors.slab} roughness={0.95} metalness={0} />
       </mesh>
       <lineSegments position={[0, 0.005, 0]}>
-        <edgesGeometry
-          args={[new THREE.BoxGeometry(width, 0.0001, depth)]}
-        />
+        <edgesGeometry args={[new THREE.BoxGeometry(width, 0.0001, depth)]} />
         <lineBasicMaterial color={colors.edge} />
       </lineSegments>
       {showGrid && (
@@ -86,13 +118,13 @@ function BuildPlate({
           position={[0, 0.01, 0]}
           args={[width, depth]}
           cellSize={cellSize}
-          cellThickness={0.6}
+          cellThickness={0.7}
           cellColor={colors.gridMinor}
           sectionSize={cellSize * 5}
-          sectionThickness={1.0}
+          sectionThickness={1.2}
           sectionColor={colors.gridMajor}
-          fadeDistance={Math.max(width, depth) * 1.5}
-          fadeStrength={1.2}
+          fadeDistance={Math.max(width, depth) * 1.6}
+          fadeStrength={1.0}
           followCamera={false}
           infiniteGrid={false}
         />
@@ -101,10 +133,6 @@ function BuildPlate({
   );
 }
 
-/**
- * Captures the OrbitControls reference so the viewport store can drive it
- * (recenter / zoom buttons live outside the Canvas).
- */
 function CameraDirector() {
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
   const { camera } = useThree();
@@ -153,7 +181,7 @@ function FitToBoundsTrigger({ trigger }: { trigger: number }) {
   return null;
 }
 
-export function Viewport({ mesh, loading, gridUnit }: Props) {
+export function Viewport({ mesh, loading, gridUnit, cameraPosition }: Props) {
   const theme = useThemeStore((s) => s.theme);
   const { printerId, customPlate, plateVisible, gridVisible, shadowsEnabled, fitNonce } =
     useViewportStore();
@@ -174,7 +202,7 @@ export function Viewport({ mesh, loading, gridUnit }: Props) {
     <div className="relative w-full h-full">
       <Canvas
         shadows
-        camera={{ position: [180, 180, 180], fov: 35, near: 0.1, far: 4000 }}
+        camera={{ position: cameraPosition ?? [180, 180, 180], fov: 35, near: 0.1, far: 4000 }}
         gl={{ antialias: true, preserveDrawingBuffer: false }}
       >
         <color attach="background" args={[colors.canvasBg]} />
@@ -195,6 +223,8 @@ export function Viewport({ mesh, loading, gridUnit }: Props) {
           shadow-bias={-0.0001}
         />
         <directionalLight position={[-150, 60, -100]} intensity={0.35} />
+
+        {gridVisible && <ExtendedGrid cellSize={gridUnit} themeKey={theme} />}
 
         {plateVisible && (
           <BuildPlate

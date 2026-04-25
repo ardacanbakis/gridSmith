@@ -9,6 +9,7 @@ type Persisted = {
   plateVisible: boolean;
   gridVisible: boolean;
   shadowsEnabled: boolean;
+  duoView: boolean;
 };
 
 const DEFAULTS: Persisted = {
@@ -17,6 +18,7 @@ const DEFAULTS: Persisted = {
   plateVisible: true,
   gridVisible: true,
   shadowsEnabled: true,
+  duoView: false,
 };
 
 function load(): Persisted {
@@ -41,6 +43,7 @@ type ViewportState = Persisted & {
   togglePlate: () => void;
   toggleGrid: () => void;
   toggleShadows: () => void;
+  toggleDuoView: () => void;
   /** A monotonically incrementing nudge so the viewport recentres on demand. */
   recenterNonce: number;
   recenter: () => void;
@@ -86,6 +89,11 @@ export const useViewportStore = create<ViewportState>((set, get) => ({
     set(next);
     persist(next);
   },
+  toggleDuoView: () => {
+    const next = { ...current(get), duoView: !get().duoView };
+    set(next);
+    persist(next);
+  },
 
   recenter: () => set((s) => ({ recenterNonce: s.recenterNonce + 1 })),
   fit: () => set((s) => ({ fitNonce: s.fitNonce + 1 })),
@@ -101,5 +109,6 @@ function current(get: () => ViewportState): Persisted {
     plateVisible: s.plateVisible,
     gridVisible: s.gridVisible,
     shadowsEnabled: s.shadowsEnabled,
+    duoView: s.duoView,
   };
 }

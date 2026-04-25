@@ -2,15 +2,16 @@ import { useEffect, useRef, useState } from 'react';
 import { Header } from './components/Header';
 import { ParameterPanel } from './components/ParameterPanel';
 import { Viewport } from './components/Viewport';
-import { ViewportToolbar } from './components/ViewportToolbar';
 import { InfoOverlay } from './components/InfoOverlay';
 import { useDesignStore } from './store/designStore';
+import { useViewportStore } from './store/viewportStore';
 import { getWorker } from './lib/geometry/workerClient';
 import type { Bbox, BuildStats, ExportFormat, MeshData } from './lib/geometry/types';
 import { downloadBlob } from './lib/geometry/stl';
 
 export default function App() {
   const design = useDesignStore((s) => s.design);
+  const duoView = useViewportStore((s) => s.duoView);
   const [mesh, setMesh] = useState<MeshData | null>(null);
   const [bbox, setBbox] = useState<Bbox | null>(null);
   const [stats, setStats] = useState<BuildStats | null>(null);
@@ -68,12 +69,23 @@ export default function App() {
       <Header onExport={onExport} exporting={exporting} />
       <div className="flex-1 flex min-h-0">
         <ParameterPanel />
-        <main className="flex-1 relative">
-          <Viewport mesh={mesh} loading={building} gridUnit={design.spec.gridUnit} />
-          <ViewportToolbar />
-          <InfoOverlay bbox={bbox} />
+        <main className="flex-1 relative flex">
+          <div className="flex-1 relative">
+            <Viewport mesh={mesh} loading={building} gridUnit={design.spec.gridUnit} />
+            <InfoOverlay bbox={bbox} />
+          </div>
+          {duoView && (
+            <div className="flex-1 relative border-l border-border">
+              <Viewport
+                mesh={mesh}
+                loading={false}
+                gridUnit={design.spec.gridUnit}
+                cameraPosition={[0, 280, 0.001]}
+              />
+            </div>
+          )}
           {stats && stats.droppedHoles !== undefined && stats.droppedHoles > 0 && (
-            <div className="absolute top-16 left-3 panel rounded px-3 py-2 text-xs">
+            <div className="absolute top-3 left-3 panel rounded px-3 py-2 text-xs">
               <span className="warn-badge mr-2">too many bits</span>
               <span className="text-text-muted">
                 {stats.placedHoles} placed · {stats.droppedHoles} dropped — increase bin size or reduce spacing.
