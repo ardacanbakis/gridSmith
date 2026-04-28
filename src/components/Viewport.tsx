@@ -16,12 +16,14 @@ import { useThemeStore, readCssVarRgb } from '@/store/themeStore';
 import { useViewportStore } from '@/store/viewportStore';
 import { findPrinter } from '@/lib/printers';
 
+type Vec3 = [number, number, number];
+
 type Props = {
   mesh: MeshData | null;
   loading: boolean;
   gridUnit: number;
-  /** Camera initial position; lets the duo viewport place a second view at a different angle. */
-  cameraPosition?: [number, number, number];
+  /** Camera initial position; lets the duo viewport start at a different angle. */
+  cameraPosition?: Vec3;
 };
 
 function PartMesh({ data, color }: { data: MeshData; color: string }) {
@@ -48,13 +50,11 @@ function PartMesh({ data, color }: { data: MeshData; color: string }) {
   );
 }
 
-function ExtendedGrid({
-  cellSize,
-  themeKey,
-}: {
-  cellSize: number;
-  themeKey: string;
-}) {
+/**
+ * Subtle grid carpeting the whole world, fading at the edges. Lives BELOW the
+ * build plate so the plate's grid pops on top.
+ */
+function ExtendedGrid({ cellSize, themeKey }: { cellSize: number; themeKey: string }) {
   const colors = useMemo(
     () => ({
       gridMinor: readCssVarRgb('grid-minor', '#2A2F3A'),
@@ -64,7 +64,7 @@ function ExtendedGrid({
   );
   return (
     <Grid
-      position={[0, -0.02, 0]}
+      position={[0, -0.05, 0]}
       args={[10000, 10000]}
       cellSize={cellSize}
       cellThickness={0.4}
@@ -72,14 +72,19 @@ function ExtendedGrid({
       sectionSize={cellSize * 5}
       sectionThickness={0.7}
       sectionColor={colors.gridMajor}
-      fadeDistance={1200}
-      fadeStrength={1.5}
+      fadeDistance={1500}
+      fadeStrength={1.4}
       followCamera={false}
       infiniteGrid
     />
   );
 }
 
+/**
+ * Build-plate footprint: brighter overlay grid + frame, no solid slab. The
+ * subtle tinted plane is just for shadow reception so the part doesn't look
+ * like it's floating; it's nearly invisible from above.
+ */
 function BuildPlate({
   width,
   depth,
@@ -95,45 +100,60 @@ function BuildPlate({
 }) {
   const colors = useMemo(
     () => ({
-      slab: readCssVarRgb('bg-elevated', '#1E232C'),
-      edge: readCssVarRgb('border-strong', '#3A4150'),
-      gridMinor: readCssVarRgb('grid-minor', '#2A2F3A'),
-      gridMajor: readCssVarRgb('grid-major', '#3A4150'),
+      tint: readCssVarRgb('bg-elevated', '#1E232C'),
+      edge: readCssVarRgb('accent', '#F59E0B'),
+      gridMinor: readCssVarRgb('grid-major', '#3A4150'),
+      gridMajor: readCssVarRgb('text-muted', '#9CA3AF'),
     }),
     [themeKey],
   );
 
+  const frameGeo = useMemo(() => {
+    const half = 0.0001;
+    return new THREE.BoxGeometry(width, half, depth);
+  }, [width, depth]);
+
+  useEffect(() => () => frameGeo.dispose(), [frameGeo]);
+
   return (
     <group>
-      <mesh receiveShadow position={[0, -0.05, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+      <mesh receiveShadow position={[0, -0.04, 0]} rotation={[-Math.PI / 2, 0, 0]}>
         <planeGeometry args={[width, depth]} />
-        <meshStandardMaterial color={colors.slab} roughness={0.95} metalness={0} />
+        <meshStandardMaterial
+          color={colors.tint}
+          roughness={1}
+          metalness={0}
+          transparent
+          opacity={0.18}
+        />
       </mesh>
-      <lineSegments position={[0, 0.005, 0]}>
-        <edgesGeometry args={[new THREE.BoxGeometry(width, 0.0001, depth)]} />
-        <lineBasicMaterial color={colors.edge} />
-      </lineSegments>
+
       {showGrid && (
         <Grid
-          position={[0, 0.01, 0]}
+          position={[0, -0.02, 0]}
           args={[width, depth]}
           cellSize={cellSize}
-          cellThickness={0.7}
+          cellThickness={0.85}
           cellColor={colors.gridMinor}
           sectionSize={cellSize * 5}
-          sectionThickness={1.2}
+          sectionThickness={1.4}
           sectionColor={colors.gridMajor}
-          fadeDistance={Math.max(width, depth) * 1.6}
-          fadeStrength={1.0}
+          fadeDistance={Math.max(width, depth) * 1.8}
+          fadeStrength={0.6}
           followCamera={false}
           infiniteGrid={false}
         />
       )}
+
+      <lineSegments position={[0, -0.01, 0]}>
+        <edgesGeometry args={[frameGeo]} />
+        <lineBasicMaterial color={colors.edge} transparent opacity={0.45} />
+      </lineSegments>
     </group>
   );
 }
 
-function CameraDirector() {
+function CameraDirector({ initialPosition }: { initialPosition: Vec3 }) {
   const controlsRef = useRef<OrbitControlsImpl | null>(null);
   const { camera } = useThree();
   const recenterNonce = useViewportStore((s) => s.recenterNonce);
@@ -145,9 +165,9 @@ function CameraDirector() {
     const c = controlsRef.current;
     if (!c) return;
     c.target.set(0, 0, 0);
-    camera.position.set(180, 180, 180);
+    camera.position.set(initialPosition[0], initialPosition[1], initialPosition[2]);
     c.update();
-  }, [recenterNonce, camera]);
+  }, [recenterNonce, camera, initialPosition]);
 
   useEffect(() => {
     if (zoomNonce === 0 || zoomDir === 0) return;
@@ -167,7 +187,7 @@ function CameraDirector() {
       enableDamping
       dampingFactor={0.1}
       minDistance={20}
-      maxDistance={1500}
+      maxDistance={2000}
     />
   );
 }
@@ -181,10 +201,13 @@ function FitToBoundsTrigger({ trigger }: { trigger: number }) {
   return null;
 }
 
+const DEFAULT_CAMERA: Vec3 = [180, 180, 180];
+
 export function Viewport({ mesh, loading, gridUnit, cameraPosition }: Props) {
   const theme = useThemeStore((s) => s.theme);
-  const { printerId, customPlate, plateVisible, gridVisible, shadowsEnabled, fitNonce } =
-    useViewportStore();
+  const { printerId, customPlate, plateVisible, gridVisible, fitNonce } = useViewportStore();
+
+  const initialPosition: Vec3 = cameraPosition ?? DEFAULT_CAMERA;
 
   const printer = findPrinter(printerId);
   const plateW = printerId === 'custom' ? customPlate.x : printer.x;
@@ -202,7 +225,7 @@ export function Viewport({ mesh, loading, gridUnit, cameraPosition }: Props) {
     <div className="relative w-full h-full">
       <Canvas
         shadows
-        camera={{ position: cameraPosition ?? [180, 180, 180], fov: 35, near: 0.1, far: 4000 }}
+        camera={{ position: initialPosition, fov: 35, near: 0.1, far: 4000 }}
         gl={{ antialias: true, preserveDrawingBuffer: false }}
       >
         <color attach="background" args={[colors.canvasBg]} />
@@ -241,19 +264,17 @@ export function Viewport({ mesh, loading, gridUnit, cameraPosition }: Props) {
           <FitToBoundsTrigger trigger={fitNonce} />
         </Bounds>
 
-        {shadowsEnabled && (
-          <ContactShadows
-            position={[0, 0.02, 0]}
-            opacity={theme === 'light' ? 0.55 : 0.7}
-            scale={Math.max(plateW, plateD) * 1.1}
-            blur={2.4}
-            far={120}
-            resolution={1024}
-            color={theme === 'light' ? '#0F172A' : '#000000'}
-          />
-        )}
+        <ContactShadows
+          position={[0, 0.01, 0]}
+          opacity={theme === 'light' ? 0.45 : 0.6}
+          scale={Math.max(plateW, plateD) * 1.1}
+          blur={2.4}
+          far={120}
+          resolution={1024}
+          color={theme === 'light' ? '#0F172A' : '#000000'}
+        />
 
-        <CameraDirector />
+        <CameraDirector initialPosition={initialPosition} />
 
         <GizmoHelper alignment="bottom-right" margin={[64, 64]}>
           <GizmoViewport

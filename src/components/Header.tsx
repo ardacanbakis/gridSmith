@@ -14,7 +14,6 @@ import {
   Share2,
   Square,
   SquareDashed,
-  SunMedium,
   Sun,
   Undo2,
   ZoomIn,
@@ -85,13 +84,11 @@ export function Header({ onExport, exporting }: Props) {
     customPlate,
     plateVisible,
     gridVisible,
-    shadowsEnabled,
     duoView,
     setPrinterId,
     setCustomPlate,
     togglePlate,
     toggleGrid,
-    toggleShadows,
     toggleDuoView,
     recenter,
     fit,
@@ -167,13 +164,13 @@ export function Header({ onExport, exporting }: Props) {
         <h1 className="text-sm font-semibold tracking-wide hidden md:block">Gridsmith</h1>
       </div>
 
-      <Divider />
+      <div className="flex-1" />
 
       <Group>
-        <IconButton title="Recenter view" onClick={recenter}>
+        <IconButton title="Recenter view (R)" onClick={recenter}>
           <Home size={16} />
         </IconButton>
-        <IconButton title="Fit to model" onClick={fit}>
+        <IconButton title="Fit to model (F)" onClick={fit}>
           <Maximize2 size={16} />
         </IconButton>
         <IconButton title="Zoom in" onClick={zoomIn}>
@@ -193,9 +190,6 @@ export function Header({ onExport, exporting }: Props) {
         <IconButton title="Toggle build plate" active={plateVisible} onClick={togglePlate}>
           {plateVisible ? <Square size={16} /> : <SquareDashed size={16} />}
         </IconButton>
-        <IconButton title="Toggle contact shadows" active={shadowsEnabled} onClick={toggleShadows}>
-          <SunMedium size={16} />
-        </IconButton>
         <IconButton title={duoView ? 'Single view' : 'Duo view'} active={duoView} onClick={toggleDuoView}>
           <Columns2 size={16} />
         </IconButton>
@@ -207,10 +201,10 @@ export function Header({ onExport, exporting }: Props) {
       <Divider />
 
       <Group>
-        <IconButton title="Undo" disabled={past === 0} onClick={() => undo(1)}>
+        <IconButton title="Undo (Ctrl+Z)" disabled={past === 0} onClick={() => undo(1)}>
           <Undo2 size={16} />
         </IconButton>
-        <IconButton title="Redo" disabled={future === 0} onClick={() => redo(1)}>
+        <IconButton title="Redo (Ctrl+Shift+Z)" disabled={future === 0} onClick={() => redo(1)}>
           <Redo2 size={16} />
         </IconButton>
       </Group>

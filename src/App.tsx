@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useStore } from 'zustand';
 import { Header } from './components/Header';
 import { ParameterPanel } from './components/ParameterPanel';
 import { Viewport } from './components/Viewport';
@@ -9,9 +10,22 @@ import { getWorker } from './lib/geometry/workerClient';
 import type { Bbox, BuildStats, ExportFormat, MeshData } from './lib/geometry/types';
 import { downloadBlob } from './lib/geometry/stl';
 
+function PaneBadge({ label }: { label: string }) {
+  return (
+    <div className="absolute top-3 left-3 panel rounded px-2 py-1 text-[10px] uppercase tracking-wide font-semibold text-text-muted pointer-events-none">
+      {label}
+    </div>
+  );
+}
+
 export default function App() {
   const design = useDesignStore((s) => s.design);
   const duoView = useViewportStore((s) => s.duoView);
+  const fit = useViewportStore((s) => s.fit);
+  const recenter = useViewportStore((s) => s.recenter);
+  const undo = useStore(useDesignStore.temporal, (s) => s.undo);
+  const redo = useStore(useDesignStore.temporal, (s) => s.redo);
+
   const [mesh, setMesh] = useState<MeshData | null>(null);
   const [bbox, setBbox] = useState<Bbox | null>(null);
   const [stats, setStats] = useState<BuildStats | null>(null);
@@ -46,6 +60,31 @@ export default function App() {
       });
   }, [design.model, design.spec]);
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && /^(input|textarea|select)$/i.test(target.tagName)) return;
+      if (target?.isContentEditable) return;
+
+      const mod = e.ctrlKey || e.metaKey;
+      if (mod && e.key.toLowerCase() === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        undo(1);
+      } else if (mod && (e.key.toLowerCase() === 'y' || (e.key.toLowerCase() === 'z' && e.shiftKey))) {
+        e.preventDefault();
+        redo(1);
+      } else if (!mod && e.key.toLowerCase() === 'f') {
+        e.preventDefault();
+        fit();
+      } else if (!mod && e.key.toLowerCase() === 'r') {
+        e.preventDefault();
+        recenter();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [undo, redo, fit, recenter]);
+
   const onExport = async (format: ExportFormat) => {
     setExporting(true);
     try {
@@ -70,22 +109,24 @@ export default function App() {
       <div className="flex-1 flex min-h-0">
         <ParameterPanel />
         <main className="flex-1 relative flex">
-          <div className="flex-1 relative">
+          <div className="flex-1 relative min-w-0">
             <Viewport mesh={mesh} loading={building} gridUnit={design.spec.gridUnit} />
+            {duoView && <PaneBadge label="ISO" />}
             <InfoOverlay bbox={bbox} />
           </div>
           {duoView && (
-            <div className="flex-1 relative border-l border-border">
+            <div className="flex-1 relative min-w-0 border-l border-border">
               <Viewport
                 mesh={mesh}
                 loading={false}
                 gridUnit={design.spec.gridUnit}
-                cameraPosition={[0, 280, 0.001]}
+                cameraPosition={[0.001, 320, 0.001]}
               />
+              <PaneBadge label="Top" />
             </div>
           )}
           {stats && stats.droppedHoles !== undefined && stats.droppedHoles > 0 && (
-            <div className="absolute top-3 left-3 panel rounded px-3 py-2 text-xs">
+            <div className="absolute top-3 left-1/2 -translate-x-1/2 panel rounded px-3 py-2 text-xs">
               <span className="warn-badge mr-2">too many bits</span>
               <span className="text-text-muted">
                 {stats.placedHoles} placed · {stats.droppedHoles} dropped — increase bin size or reduce spacing.
