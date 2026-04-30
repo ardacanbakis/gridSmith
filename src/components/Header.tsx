@@ -190,7 +190,7 @@ export function Header({ onExport, exporting }: Props) {
         <IconButton title="Toggle build plate" active={plateVisible} onClick={togglePlate}>
           {plateVisible ? <Square size={16} /> : <SquareDashed size={16} />}
         </IconButton>
-        <IconButton title={duoView ? 'Single view' : 'Duo view'} active={duoView} onClick={toggleDuoView}>
+        <IconButton title={duoView ? 'Single sidebar' : 'Dual sidebar'} active={duoView} onClick={toggleDuoView}>
           <Columns2 size={16} />
         </IconButton>
         <IconButton title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'} onClick={onFullscreen}>

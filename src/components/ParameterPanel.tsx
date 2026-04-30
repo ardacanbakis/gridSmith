@@ -13,6 +13,9 @@ import { STANDARD, isStandardSpec } from '@/lib/gridfinity/spec';
 import { BIT_SETS } from '@/lib/gridfinity/bitSets';
 import { fmtLength } from '@/lib/units';
 
+export type PanelMode = 'all' | 'core' | 'finish';
+export type PanelSide = 'left' | 'right';
+
 type ModelKind = ReturnType<typeof useDesignStore.getState>['design']['model']['kind'];
 
 const MODEL_OPTIONS: Array<{ kind: ModelKind; label: string; icon: ReactNode }> = [
@@ -243,501 +246,547 @@ function CustomBitsEditor({
   );
 }
 
-export function ParameterPanel() {
+type Props = {
+  mode?: PanelMode;
+  side?: PanelSide;
+};
+
+export function ParameterPanel({ mode = 'all', side = 'left' }: Props) {
   const { design, setModel, switchKind, setSpec } = useDesignStore();
   const { model, spec, units } = design;
   const specIsStandard = isStandardSpec(spec.gridUnit, spec.heightUnit);
   const len = (digits = 1) => (v: number) => fmtLength(v, units, digits);
 
+  const showCore = mode === 'all' || mode === 'core';
+  const showFinish = mode === 'all' || mode === 'finish';
+
   return (
-    <aside className="w-72 shrink-0 panel border-r flex flex-col">
-      <div className="p-3 border-b border-border">
-        <ModelTypePicker value={model.kind} onChange={(k) => switchKind(k)} />
-      </div>
+    <aside
+      className={`w-72 shrink-0 panel ${side === 'left' ? 'border-r' : 'border-l'} flex flex-col`}
+    >
+      {showCore && (
+        <div className="p-3 border-b border-border">
+          <ModelTypePicker value={model.kind} onChange={(k) => switchKind(k)} />
+        </div>
+      )}
 
       <div className="flex-1 overflow-y-auto px-3">
-        <Section
-          title="Grid"
-          defaultOpen={!specIsStandard}
-          right={!specIsStandard && <span className="warn-badge">non-standard</span>}
-        >
-          <NumberField
-            label="Cell size"
-            value={spec.gridUnit}
-            min={10}
-            max={120}
-            step={0.5}
-            onChange={(v) => setSpec({ gridUnit: v })}
-            format={len(1)}
-          />
-          <NumberField
-            label="Height unit"
-            value={spec.heightUnit}
-            min={2}
-            max={30}
-            step={0.5}
-            onChange={(v) => setSpec({ heightUnit: v })}
-            format={len(1)}
-          />
-          {!specIsStandard && (
-            <p className="text-xs text-warn leading-snug">
-              Deviates from Gridfinity spec ({STANDARD.gridUnit} mm × {STANDARD.heightUnit} mm).
-              Parts won't mate with stock bins.
-            </p>
-          )}
-        </Section>
+        {showCore && (
+          <Section
+            title="Grid"
+            defaultOpen={!specIsStandard}
+            right={!specIsStandard && <span className="warn-badge">non-standard</span>}
+          >
+            <NumberField
+              label="Cell size"
+              value={spec.gridUnit}
+              min={10}
+              max={120}
+              step={0.5}
+              onChange={(v) => setSpec({ gridUnit: v })}
+              format={len(1)}
+            />
+            <NumberField
+              label="Height unit"
+              value={spec.heightUnit}
+              min={2}
+              max={30}
+              step={0.5}
+              onChange={(v) => setSpec({ heightUnit: v })}
+              format={len(1)}
+            />
+            {!specIsStandard && (
+              <p className="text-xs text-warn leading-snug">
+                Deviates from Gridfinity spec ({STANDARD.gridUnit} mm × {STANDARD.heightUnit} mm).
+                Parts won't mate with stock bins.
+              </p>
+            )}
+          </Section>
+        )}
 
         {model.kind === 'screwOrganizer' ? (
           <>
-            <Section title="Size">
-              <NumberField
-                label="Cells X"
-                value={model.cellsX}
-                min={1}
-                max={10}
-                onChange={(v) => setModel(ScrewOrganizerParamsSchema.parse({ ...model, cellsX: v }))}
-              />
-              <NumberField
-                label="Cells Y"
-                value={model.cellsY}
-                min={1}
-                max={10}
-                onChange={(v) => setModel(ScrewOrganizerParamsSchema.parse({ ...model, cellsY: v }))}
-              />
-              <NumberField
-                label="Height (units)"
-                value={model.heightUnits}
-                min={2}
-                max={20}
-                onChange={(v) => setModel(ScrewOrganizerParamsSchema.parse({ ...model, heightUnits: v }))}
-                format={(v) => `${v}u = ${fmtLength(v * spec.heightUnit, units, 1)}`}
-              />
-            </Section>
+            {showCore && (
+              <Section title="Size">
+                <NumberField
+                  label="Cells X"
+                  value={model.cellsX}
+                  min={1}
+                  max={10}
+                  onChange={(v) => setModel(ScrewOrganizerParamsSchema.parse({ ...model, cellsX: v }))}
+                />
+                <NumberField
+                  label="Cells Y"
+                  value={model.cellsY}
+                  min={1}
+                  max={10}
+                  onChange={(v) => setModel(ScrewOrganizerParamsSchema.parse({ ...model, cellsY: v }))}
+                />
+                <NumberField
+                  label="Height (units)"
+                  value={model.heightUnits}
+                  min={2}
+                  max={20}
+                  onChange={(v) => setModel(ScrewOrganizerParamsSchema.parse({ ...model, heightUnits: v }))}
+                  format={(v) => `${v}u = ${fmtLength(v * spec.heightUnit, units, 1)}`}
+                />
+              </Section>
+            )}
 
-            <Section title="Compartments">
-              <NumberField
-                label="Columns"
-                value={model.cols}
-                min={1}
-                max={10}
-                onChange={(v) => setModel(ScrewOrganizerParamsSchema.parse({ ...model, cols: v }))}
-                suffix={`= ${model.cols} across`}
-              />
-              <NumberField
-                label="Rows"
-                value={model.rows}
-                min={1}
-                max={10}
-                onChange={(v) => setModel(ScrewOrganizerParamsSchema.parse({ ...model, rows: v }))}
-                suffix={`= ${model.rows} deep`}
-              />
-              <NumberField
-                label="Wall thickness"
-                value={model.wallThickness}
-                min={0.8}
-                max={3}
-                step={0.1}
-                onChange={(v) => setModel(ScrewOrganizerParamsSchema.parse({ ...model, wallThickness: v }))}
-                format={len(2)}
-              />
-              <NumberField
-                label="Back tilt"
-                value={model.tiltDegrees}
-                min={0}
-                max={20}
-                step={0.5}
-                onChange={(v) => setModel(ScrewOrganizerParamsSchema.parse({ ...model, tiltDegrees: v }))}
-                suffix="°"
-              />
-            </Section>
+            {showCore && (
+              <Section title="Compartments">
+                <NumberField
+                  label="Columns"
+                  value={model.cols}
+                  min={1}
+                  max={10}
+                  onChange={(v) => setModel(ScrewOrganizerParamsSchema.parse({ ...model, cols: v }))}
+                  suffix={`= ${model.cols} across`}
+                />
+                <NumberField
+                  label="Rows"
+                  value={model.rows}
+                  min={1}
+                  max={10}
+                  onChange={(v) => setModel(ScrewOrganizerParamsSchema.parse({ ...model, rows: v }))}
+                  suffix={`= ${model.rows} deep`}
+                />
+                <NumberField
+                  label="Wall thickness"
+                  value={model.wallThickness}
+                  min={0.8}
+                  max={3}
+                  step={0.1}
+                  onChange={(v) => setModel(ScrewOrganizerParamsSchema.parse({ ...model, wallThickness: v }))}
+                  format={len(2)}
+                />
+                <NumberField
+                  label="Back tilt"
+                  value={model.tiltDegrees}
+                  min={0}
+                  max={20}
+                  step={0.5}
+                  onChange={(v) => setModel(ScrewOrganizerParamsSchema.parse({ ...model, tiltDegrees: v }))}
+                  suffix="°"
+                />
+              </Section>
+            )}
 
-            <Section title="Label" defaultOpen={false}>
-              <SegmentedControl<LabelStyle>
-                value={model.labelStyle}
-                onChange={(v) => setModel(ScrewOrganizerParamsSchema.parse({ ...model, labelStyle: v }))}
-                options={[
-                  { value: 'none', label: 'None' },
-                  { value: 'paperPocket', label: 'Paper' },
-                  { value: 'clipTab', label: 'Clip' },
-                  { value: 'embossText', label: 'Emboss' },
-                  { value: 'engraveText', label: 'Engrave' },
-                ]}
-              />
-              {(model.labelStyle === 'embossText' || model.labelStyle === 'engraveText') && (
-                <>
-                  <label className="flex flex-col gap-1">
-                    <span className="label normal-case">Text</span>
-                    <input
-                      className="input"
-                      type="text"
-                      maxLength={40}
-                      value={model.labelText}
-                      onChange={(e) =>
-                        setModel(ScrewOrganizerParamsSchema.parse({ ...model, labelText: e.target.value }))
-                      }
+            {showFinish && (
+              <Section title="Label">
+                <SegmentedControl<LabelStyle>
+                  value={model.labelStyle}
+                  onChange={(v) => setModel(ScrewOrganizerParamsSchema.parse({ ...model, labelStyle: v }))}
+                  options={[
+                    { value: 'none', label: 'None' },
+                    { value: 'paperPocket', label: 'Paper' },
+                    { value: 'clipTab', label: 'Clip' },
+                    { value: 'embossText', label: 'Emboss' },
+                    { value: 'engraveText', label: 'Engrave' },
+                  ]}
+                />
+                {(model.labelStyle === 'embossText' || model.labelStyle === 'engraveText') && (
+                  <>
+                    <label className="flex flex-col gap-1">
+                      <span className="label normal-case">Text</span>
+                      <input
+                        className="input"
+                        type="text"
+                        maxLength={40}
+                        value={model.labelText}
+                        onChange={(e) =>
+                          setModel(ScrewOrganizerParamsSchema.parse({ ...model, labelText: e.target.value }))
+                        }
+                      />
+                    </label>
+                    <NumberField
+                      label="Text height"
+                      value={model.labelHeight}
+                      min={2}
+                      max={20}
+                      step={0.5}
+                      onChange={(v) => setModel(ScrewOrganizerParamsSchema.parse({ ...model, labelHeight: v }))}
+                      format={len(1)}
                     />
-                  </label>
-                  <NumberField
-                    label="Text height"
-                    value={model.labelHeight}
-                    min={2}
-                    max={20}
-                    step={0.5}
-                    onChange={(v) => setModel(ScrewOrganizerParamsSchema.parse({ ...model, labelHeight: v }))}
-                    format={len(1)}
-                  />
-                  <NumberField
-                    label={model.labelStyle === 'engraveText' ? 'Engrave depth' : 'Emboss height'}
-                    value={model.labelDepth}
-                    min={0.2}
-                    max={2.5}
-                    step={0.1}
-                    onChange={(v) => setModel(ScrewOrganizerParamsSchema.parse({ ...model, labelDepth: v }))}
-                    format={len(2)}
-                  />
-                </>
-              )}
-            </Section>
+                    <NumberField
+                      label={model.labelStyle === 'engraveText' ? 'Engrave depth' : 'Emboss height'}
+                      value={model.labelDepth}
+                      min={0.2}
+                      max={2.5}
+                      step={0.1}
+                      onChange={(v) => setModel(ScrewOrganizerParamsSchema.parse({ ...model, labelDepth: v }))}
+                      format={len(2)}
+                    />
+                  </>
+                )}
+              </Section>
+            )}
 
-            <Section title="Finish" defaultOpen={false}>
-              <Toggle
-                label="Stacking lip"
-                value={model.stackingLip}
-                onChange={(v) => setModel(ScrewOrganizerParamsSchema.parse({ ...model, stackingLip: v }))}
-              />
-              <Toggle
-                label="Magnet holes"
-                value={model.magnetHoles}
-                onChange={(v) => setModel(ScrewOrganizerParamsSchema.parse({ ...model, magnetHoles: v }))}
-              />
-              <Toggle
-                label="Screw holes"
-                value={model.screwHoles}
-                onChange={(v) => setModel(ScrewOrganizerParamsSchema.parse({ ...model, screwHoles: v }))}
-              />
-            </Section>
+            {showFinish && (
+              <Section title="Finish">
+                <Toggle
+                  label="Stacking lip"
+                  value={model.stackingLip}
+                  onChange={(v) => setModel(ScrewOrganizerParamsSchema.parse({ ...model, stackingLip: v }))}
+                />
+                <Toggle
+                  label="Magnet holes"
+                  value={model.magnetHoles}
+                  onChange={(v) => setModel(ScrewOrganizerParamsSchema.parse({ ...model, magnetHoles: v }))}
+                />
+                <Toggle
+                  label="Screw holes"
+                  value={model.screwHoles}
+                  onChange={(v) => setModel(ScrewOrganizerParamsSchema.parse({ ...model, screwHoles: v }))}
+                />
+              </Section>
+            )}
           </>
         ) : model.kind === 'drillBitHolder' ? (
           <>
-            <Section title="Size">
-              <NumberField
-                label="Cells X"
-                value={model.cellsX}
-                min={1}
-                max={10}
-                onChange={(v) => setModel(DrillBitHolderParamsSchema.parse({ ...model, cellsX: v }))}
-              />
-              <NumberField
-                label="Cells Y"
-                value={model.cellsY}
-                min={1}
-                max={10}
-                onChange={(v) => setModel(DrillBitHolderParamsSchema.parse({ ...model, cellsY: v }))}
-              />
-              <NumberField
-                label="Height (units)"
-                value={model.heightUnits}
-                min={2}
-                max={20}
-                onChange={(v) => setModel(DrillBitHolderParamsSchema.parse({ ...model, heightUnits: v }))}
-                format={(v) => `${v}u = ${fmtLength(v * spec.heightUnit, units, 1)}`}
-              />
-            </Section>
+            {showCore && (
+              <Section title="Size">
+                <NumberField
+                  label="Cells X"
+                  value={model.cellsX}
+                  min={1}
+                  max={10}
+                  onChange={(v) => setModel(DrillBitHolderParamsSchema.parse({ ...model, cellsX: v }))}
+                />
+                <NumberField
+                  label="Cells Y"
+                  value={model.cellsY}
+                  min={1}
+                  max={10}
+                  onChange={(v) => setModel(DrillBitHolderParamsSchema.parse({ ...model, cellsY: v }))}
+                />
+                <NumberField
+                  label="Height (units)"
+                  value={model.heightUnits}
+                  min={2}
+                  max={20}
+                  onChange={(v) => setModel(DrillBitHolderParamsSchema.parse({ ...model, heightUnits: v }))}
+                  format={(v) => `${v}u = ${fmtLength(v * spec.heightUnit, units, 1)}`}
+                />
+              </Section>
+            )}
 
-            <Section title="Bit set">
-              <label className="flex flex-col gap-1">
-                <span className="label normal-case">Preset</span>
-                <select
-                  className="input"
-                  value={model.bitSet}
-                  onChange={(e) =>
-                    setModel(
-                      DrillBitHolderParamsSchema.parse({
-                        ...model,
-                        bitSet: e.target.value as BitSetId,
-                      }),
-                    )
+            {showCore && (
+              <Section title="Bit set">
+                <label className="flex flex-col gap-1">
+                  <span className="label normal-case">Preset</span>
+                  <select
+                    className="input"
+                    value={model.bitSet}
+                    onChange={(e) =>
+                      setModel(
+                        DrillBitHolderParamsSchema.parse({
+                          ...model,
+                          bitSet: e.target.value as BitSetId,
+                        }),
+                      )
+                    }
+                  >
+                    {Object.values(BIT_SETS).map((bs) => (
+                      <option key={bs.id} value={bs.id}>
+                        {bs.label} — {bs.diameters.length} bits
+                      </option>
+                    ))}
+                    <option value="custom">Custom list…</option>
+                  </select>
+                </label>
+                {model.bitSet === 'custom' && (
+                  <CustomBitsEditor
+                    bits={model.customBits}
+                    onChange={(b) =>
+                      setModel(DrillBitHolderParamsSchema.parse({ ...model, customBits: b }))
+                    }
+                  />
+                )}
+              </Section>
+            )}
+
+            {showFinish && (
+              <Section title="Holes">
+                <NumberField
+                  label="Hole depth"
+                  value={model.holeDepth}
+                  min={2}
+                  max={50}
+                  step={0.5}
+                  onChange={(v) =>
+                    setModel(DrillBitHolderParamsSchema.parse({ ...model, holeDepth: v }))
                   }
-                >
-                  {Object.values(BIT_SETS).map((bs) => (
-                    <option key={bs.id} value={bs.id}>
-                      {bs.label} — {bs.diameters.length} bits
-                    </option>
-                  ))}
-                  <option value="custom">Custom list…</option>
-                </select>
-              </label>
-              {model.bitSet === 'custom' && (
-                <CustomBitsEditor
-                  bits={model.customBits}
-                  onChange={(b) =>
-                    setModel(DrillBitHolderParamsSchema.parse({ ...model, customBits: b }))
+                  format={len(1)}
+                />
+                <NumberField
+                  label="Radial clearance"
+                  value={model.clearance}
+                  min={0}
+                  max={0.5}
+                  step={0.05}
+                  onChange={(v) =>
+                    setModel(DrillBitHolderParamsSchema.parse({ ...model, clearance: v }))
+                  }
+                  format={(v) => `+${v.toFixed(2)} mm`}
+                />
+                <NumberField
+                  label="Hole spacing"
+                  value={model.spacing}
+                  min={0.5}
+                  max={10}
+                  step={0.1}
+                  onChange={(v) =>
+                    setModel(DrillBitHolderParamsSchema.parse({ ...model, spacing: v }))
+                  }
+                  format={len(2)}
+                />
+                <NumberField
+                  label="Edge clearance"
+                  value={model.edgeClearance}
+                  min={1}
+                  max={10}
+                  step={0.5}
+                  onChange={(v) =>
+                    setModel(DrillBitHolderParamsSchema.parse({ ...model, edgeClearance: v }))
+                  }
+                  format={len(1)}
+                />
+              </Section>
+            )}
+
+            {showFinish && (
+              <Section title="Finish">
+                <Toggle
+                  label="Stacking lip"
+                  value={model.stackingLip}
+                  onChange={(v) =>
+                    setModel(DrillBitHolderParamsSchema.parse({ ...model, stackingLip: v }))
                   }
                 />
-              )}
-            </Section>
-
-            <Section title="Holes">
-              <NumberField
-                label="Hole depth"
-                value={model.holeDepth}
-                min={2}
-                max={50}
-                step={0.5}
-                onChange={(v) =>
-                  setModel(DrillBitHolderParamsSchema.parse({ ...model, holeDepth: v }))
-                }
-                format={len(1)}
-              />
-              <NumberField
-                label="Radial clearance"
-                value={model.clearance}
-                min={0}
-                max={0.5}
-                step={0.05}
-                onChange={(v) =>
-                  setModel(DrillBitHolderParamsSchema.parse({ ...model, clearance: v }))
-                }
-                format={(v) => `+${v.toFixed(2)} mm`}
-              />
-              <NumberField
-                label="Hole spacing"
-                value={model.spacing}
-                min={0.5}
-                max={10}
-                step={0.1}
-                onChange={(v) =>
-                  setModel(DrillBitHolderParamsSchema.parse({ ...model, spacing: v }))
-                }
-                format={len(2)}
-              />
-              <NumberField
-                label="Edge clearance"
-                value={model.edgeClearance}
-                min={1}
-                max={10}
-                step={0.5}
-                onChange={(v) =>
-                  setModel(DrillBitHolderParamsSchema.parse({ ...model, edgeClearance: v }))
-                }
-                format={len(1)}
-              />
-            </Section>
-
-            <Section title="Finish" defaultOpen={false}>
-              <Toggle
-                label="Stacking lip"
-                value={model.stackingLip}
-                onChange={(v) =>
-                  setModel(DrillBitHolderParamsSchema.parse({ ...model, stackingLip: v }))
-                }
-              />
-              <Toggle
-                label="Magnet holes"
-                value={model.magnetHoles}
-                onChange={(v) =>
-                  setModel(DrillBitHolderParamsSchema.parse({ ...model, magnetHoles: v }))
-                }
-              />
-              <Toggle
-                label="Screw holes"
-                value={model.screwHoles}
-                onChange={(v) =>
-                  setModel(DrillBitHolderParamsSchema.parse({ ...model, screwHoles: v }))
-                }
-              />
-            </Section>
+                <Toggle
+                  label="Magnet holes"
+                  value={model.magnetHoles}
+                  onChange={(v) =>
+                    setModel(DrillBitHolderParamsSchema.parse({ ...model, magnetHoles: v }))
+                  }
+                />
+                <Toggle
+                  label="Screw holes"
+                  value={model.screwHoles}
+                  onChange={(v) =>
+                    setModel(DrillBitHolderParamsSchema.parse({ ...model, screwHoles: v }))
+                  }
+                />
+              </Section>
+            )}
           </>
         ) : model.kind === 'bin' ? (
           <>
-            <Section title="Size">
-              <NumberField
-                label="Cells X"
-                value={model.cellsX}
-                min={1}
-                max={10}
-                onChange={(v) => setModel(BinParamsSchema.parse({ ...model, cellsX: v }))}
-              />
-              <NumberField
-                label="Cells Y"
-                value={model.cellsY}
-                min={1}
-                max={10}
-                onChange={(v) => setModel(BinParamsSchema.parse({ ...model, cellsY: v }))}
-              />
-              <NumberField
-                label="Height (units)"
-                value={model.heightUnits}
-                min={2}
-                max={20}
-                onChange={(v) => setModel(BinParamsSchema.parse({ ...model, heightUnits: v }))}
-                format={(v) => `${v}u = ${fmtLength(v * spec.heightUnit, units, 1)}`}
-              />
-            </Section>
+            {showCore && (
+              <Section title="Size">
+                <NumberField
+                  label="Cells X"
+                  value={model.cellsX}
+                  min={1}
+                  max={10}
+                  onChange={(v) => setModel(BinParamsSchema.parse({ ...model, cellsX: v }))}
+                />
+                <NumberField
+                  label="Cells Y"
+                  value={model.cellsY}
+                  min={1}
+                  max={10}
+                  onChange={(v) => setModel(BinParamsSchema.parse({ ...model, cellsY: v }))}
+                />
+                <NumberField
+                  label="Height (units)"
+                  value={model.heightUnits}
+                  min={2}
+                  max={20}
+                  onChange={(v) => setModel(BinParamsSchema.parse({ ...model, heightUnits: v }))}
+                  format={(v) => `${v}u = ${fmtLength(v * spec.heightUnit, units, 1)}`}
+                />
+              </Section>
+            )}
 
-            <Section title="Shell">
-              <Toggle
-                label="Hollow"
-                value={model.hollow}
-                onChange={(v) => setModel(BinParamsSchema.parse({ ...model, hollow: v }))}
-              />
-              <NumberField
-                label="Wall thickness"
-                value={model.wallThickness}
-                min={0.8}
-                max={3}
-                step={0.1}
-                disabled={!model.hollow}
-                onChange={(v) => setModel(BinParamsSchema.parse({ ...model, wallThickness: v }))}
-                format={len(2)}
-              />
-              <Toggle
-                label="Stacking lip"
-                value={model.stackingLip}
-                onChange={(v) => setModel(BinParamsSchema.parse({ ...model, stackingLip: v }))}
-              />
-            </Section>
+            {showCore && (
+              <Section title="Shell">
+                <Toggle
+                  label="Hollow"
+                  value={model.hollow}
+                  onChange={(v) => setModel(BinParamsSchema.parse({ ...model, hollow: v }))}
+                />
+                <NumberField
+                  label="Wall thickness"
+                  value={model.wallThickness}
+                  min={0.8}
+                  max={3}
+                  step={0.1}
+                  disabled={!model.hollow}
+                  onChange={(v) => setModel(BinParamsSchema.parse({ ...model, wallThickness: v }))}
+                  format={len(2)}
+                />
+                <Toggle
+                  label="Stacking lip"
+                  value={model.stackingLip}
+                  onChange={(v) => setModel(BinParamsSchema.parse({ ...model, stackingLip: v }))}
+                />
+              </Section>
+            )}
 
-            <Section title="Compartments" defaultOpen={false}>
-              <NumberField
-                label="Dividers X"
-                value={model.divX}
-                min={1}
-                max={10}
-                disabled={!model.hollow}
-                onChange={(v) => setModel(BinParamsSchema.parse({ ...model, divX: v }))}
-                suffix={`= ${model.divX}`}
-              />
-              <NumberField
-                label="Dividers Y"
-                value={model.divY}
-                min={1}
-                max={10}
-                disabled={!model.hollow}
-                onChange={(v) => setModel(BinParamsSchema.parse({ ...model, divY: v }))}
-                suffix={`= ${model.divY}`}
-              />
-              <Toggle
-                label="Scoop ramp (front)"
-                value={model.scoopRamp}
-                disabled={!model.hollow}
-                onChange={(v) => setModel(BinParamsSchema.parse({ ...model, scoopRamp: v }))}
-              />
-            </Section>
+            {showCore && (
+              <Section title="Compartments">
+                <NumberField
+                  label="Dividers X"
+                  value={model.divX}
+                  min={1}
+                  max={10}
+                  disabled={!model.hollow}
+                  onChange={(v) => setModel(BinParamsSchema.parse({ ...model, divX: v }))}
+                  suffix={`= ${model.divX}`}
+                />
+                <NumberField
+                  label="Dividers Y"
+                  value={model.divY}
+                  min={1}
+                  max={10}
+                  disabled={!model.hollow}
+                  onChange={(v) => setModel(BinParamsSchema.parse({ ...model, divY: v }))}
+                  suffix={`= ${model.divY}`}
+                />
+                <Toggle
+                  label="Scoop ramp (front)"
+                  value={model.scoopRamp}
+                  disabled={!model.hollow}
+                  onChange={(v) => setModel(BinParamsSchema.parse({ ...model, scoopRamp: v }))}
+                />
+              </Section>
+            )}
 
-            <Section title="Label" defaultOpen={false}>
-              <SegmentedControl<LabelStyle>
-                value={model.labelStyle}
-                onChange={(v) => setModel(BinParamsSchema.parse({ ...model, labelStyle: v }))}
-                options={[
-                  { value: 'none', label: 'None' },
-                  { value: 'paperPocket', label: 'Paper' },
-                  { value: 'clipTab', label: 'Clip' },
-                  { value: 'embossText', label: 'Emboss' },
-                  { value: 'engraveText', label: 'Engrave' },
-                ]}
-              />
-              {(model.labelStyle === 'embossText' || model.labelStyle === 'engraveText') && (
-                <>
-                  <label className="flex flex-col gap-1">
-                    <span className="label normal-case">Text</span>
-                    <input
-                      className="input"
-                      type="text"
-                      maxLength={40}
-                      value={model.labelText}
-                      onChange={(e) =>
-                        setModel(BinParamsSchema.parse({ ...model, labelText: e.target.value }))
+            {showFinish && (
+              <Section title="Label">
+                <SegmentedControl<LabelStyle>
+                  value={model.labelStyle}
+                  onChange={(v) => setModel(BinParamsSchema.parse({ ...model, labelStyle: v }))}
+                  options={[
+                    { value: 'none', label: 'None' },
+                    { value: 'paperPocket', label: 'Paper' },
+                    { value: 'clipTab', label: 'Clip' },
+                    { value: 'embossText', label: 'Emboss' },
+                    { value: 'engraveText', label: 'Engrave' },
+                  ]}
+                />
+                {(model.labelStyle === 'embossText' || model.labelStyle === 'engraveText') && (
+                  <>
+                    <label className="flex flex-col gap-1">
+                      <span className="label normal-case">Text</span>
+                      <input
+                        className="input"
+                        type="text"
+                        maxLength={40}
+                        value={model.labelText}
+                        onChange={(e) =>
+                          setModel(BinParamsSchema.parse({ ...model, labelText: e.target.value }))
+                        }
+                      />
+                    </label>
+                    <NumberField
+                      label="Text height"
+                      value={model.labelHeight}
+                      min={2}
+                      max={20}
+                      step={0.5}
+                      onChange={(v) =>
+                        setModel(BinParamsSchema.parse({ ...model, labelHeight: v }))
                       }
+                      format={len(1)}
                     />
-                  </label>
-                  <NumberField
-                    label="Text height"
-                    value={model.labelHeight}
-                    min={2}
-                    max={20}
-                    step={0.5}
-                    onChange={(v) =>
-                      setModel(BinParamsSchema.parse({ ...model, labelHeight: v }))
-                    }
-                    format={len(1)}
-                  />
-                  <NumberField
-                    label={model.labelStyle === 'engraveText' ? 'Engrave depth' : 'Emboss height'}
-                    value={model.labelDepth}
-                    min={0.2}
-                    max={2.5}
-                    step={0.1}
-                    onChange={(v) =>
-                      setModel(BinParamsSchema.parse({ ...model, labelDepth: v }))
-                    }
-                    format={len(2)}
-                  />
-                </>
-              )}
-            </Section>
+                    <NumberField
+                      label={model.labelStyle === 'engraveText' ? 'Engrave depth' : 'Emboss height'}
+                      value={model.labelDepth}
+                      min={0.2}
+                      max={2.5}
+                      step={0.1}
+                      onChange={(v) =>
+                        setModel(BinParamsSchema.parse({ ...model, labelDepth: v }))
+                      }
+                      format={len(2)}
+                    />
+                  </>
+                )}
+              </Section>
+            )}
 
-            <Section title="Mounting" defaultOpen={false}>
-              <Toggle
-                label="Magnet holes"
-                value={model.magnetHoles}
-                onChange={(v) => setModel(BinParamsSchema.parse({ ...model, magnetHoles: v }))}
-              />
-              <Toggle
-                label="Screw holes"
-                value={model.screwHoles}
-                onChange={(v) => setModel(BinParamsSchema.parse({ ...model, screwHoles: v }))}
-              />
-            </Section>
+            {showFinish && (
+              <Section title="Mounting">
+                <Toggle
+                  label="Magnet holes"
+                  value={model.magnetHoles}
+                  onChange={(v) => setModel(BinParamsSchema.parse({ ...model, magnetHoles: v }))}
+                />
+                <Toggle
+                  label="Screw holes"
+                  value={model.screwHoles}
+                  onChange={(v) => setModel(BinParamsSchema.parse({ ...model, screwHoles: v }))}
+                />
+              </Section>
+            )}
           </>
         ) : (
           <>
-            <Section title="Size">
-              <NumberField
-                label="Cells X"
-                value={model.cellsX}
-                min={1}
-                max={20}
-                onChange={(v) => setModel(BaseplateParamsSchema.parse({ ...model, cellsX: v }))}
-              />
-              <NumberField
-                label="Cells Y"
-                value={model.cellsY}
-                min={1}
-                max={20}
-                onChange={(v) => setModel(BaseplateParamsSchema.parse({ ...model, cellsY: v }))}
-              />
-            </Section>
+            {showCore && (
+              <Section title="Size">
+                <NumberField
+                  label="Cells X"
+                  value={model.cellsX}
+                  min={1}
+                  max={20}
+                  onChange={(v) => setModel(BaseplateParamsSchema.parse({ ...model, cellsX: v }))}
+                />
+                <NumberField
+                  label="Cells Y"
+                  value={model.cellsY}
+                  min={1}
+                  max={20}
+                  onChange={(v) => setModel(BaseplateParamsSchema.parse({ ...model, cellsY: v }))}
+                />
+              </Section>
+            )}
 
-            <Section title="Style">
-              <SegmentedControl
-                value={model.style}
-                onChange={(v) =>
-                  setModel(BaseplateParamsSchema.parse({ ...model, style: v as 'minimal' | 'rigid' }))
-                }
-                options={[
-                  { value: 'minimal', label: 'Minimal' },
-                  { value: 'rigid', label: 'Rigid' },
-                ]}
-              />
-            </Section>
+            {showCore && (
+              <Section title="Style">
+                <SegmentedControl
+                  value={model.style}
+                  onChange={(v) =>
+                    setModel(BaseplateParamsSchema.parse({ ...model, style: v as 'minimal' | 'rigid' }))
+                  }
+                  options={[
+                    { value: 'minimal', label: 'Minimal' },
+                    { value: 'rigid', label: 'Rigid' },
+                  ]}
+                />
+              </Section>
+            )}
 
-            <Section title="Mounting" defaultOpen={false}>
-              <Toggle
-                label="Magnet holes"
-                value={model.magnetHoles}
-                onChange={(v) =>
-                  setModel(BaseplateParamsSchema.parse({ ...model, magnetHoles: v }))
-                }
-              />
-              <Toggle
-                label="Screw holes"
-                value={model.screwHoles}
-                onChange={(v) =>
-                  setModel(BaseplateParamsSchema.parse({ ...model, screwHoles: v }))
-                }
-              />
-            </Section>
+            {showFinish && (
+              <Section title="Mounting">
+                <Toggle
+                  label="Magnet holes"
+                  value={model.magnetHoles}
+                  onChange={(v) =>
+                    setModel(BaseplateParamsSchema.parse({ ...model, magnetHoles: v }))
+                  }
+                />
+                <Toggle
+                  label="Screw holes"
+                  value={model.screwHoles}
+                  onChange={(v) =>
+                    setModel(BaseplateParamsSchema.parse({ ...model, screwHoles: v }))
+                  }
+                />
+              </Section>
+            )}
           </>
         )}
       </div>

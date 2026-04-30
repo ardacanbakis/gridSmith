@@ -10,17 +10,9 @@ import { getWorker } from './lib/geometry/workerClient';
 import type { Bbox, BuildStats, ExportFormat, MeshData } from './lib/geometry/types';
 import { downloadBlob } from './lib/geometry/stl';
 
-function PaneBadge({ label }: { label: string }) {
-  return (
-    <div className="absolute top-3 left-3 panel rounded px-2 py-1 text-[10px] uppercase tracking-wide font-semibold text-text-muted pointer-events-none">
-      {label}
-    </div>
-  );
-}
-
 export default function App() {
   const design = useDesignStore((s) => s.design);
-  const duoView = useViewportStore((s) => s.duoView);
+  const duoSidebar = useViewportStore((s) => s.duoView);
   const fit = useViewportStore((s) => s.fit);
   const recenter = useViewportStore((s) => s.recenter);
   const undo = useStore(useDesignStore.temporal, (s) => s.undo);
@@ -107,24 +99,10 @@ export default function App() {
     <div className="h-full flex flex-col">
       <Header onExport={onExport} exporting={exporting} />
       <div className="flex-1 flex min-h-0">
-        <ParameterPanel />
-        <main className="flex-1 relative flex">
-          <div className="flex-1 relative min-w-0">
-            <Viewport mesh={mesh} loading={building} gridUnit={design.spec.gridUnit} />
-            {duoView && <PaneBadge label="ISO" />}
-            <InfoOverlay bbox={bbox} />
-          </div>
-          {duoView && (
-            <div className="flex-1 relative min-w-0 border-l border-border">
-              <Viewport
-                mesh={mesh}
-                loading={false}
-                gridUnit={design.spec.gridUnit}
-                cameraPosition={[0.001, 320, 0.001]}
-              />
-              <PaneBadge label="Top" />
-            </div>
-          )}
+        <ParameterPanel mode={duoSidebar ? 'core' : 'all'} side="left" />
+        <main className="flex-1 relative min-w-0">
+          <Viewport mesh={mesh} loading={building} gridUnit={design.spec.gridUnit} />
+          <InfoOverlay bbox={bbox} />
           {stats && stats.droppedHoles !== undefined && stats.droppedHoles > 0 && (
             <div className="absolute top-3 left-1/2 -translate-x-1/2 panel rounded px-3 py-2 text-xs">
               <span className="warn-badge mr-2">too many bits</span>
@@ -139,6 +117,7 @@ export default function App() {
             </div>
           )}
         </main>
+        {duoSidebar && <ParameterPanel mode="finish" side="right" />}
       </div>
     </div>
   );
