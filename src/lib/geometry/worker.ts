@@ -32,6 +32,23 @@ async function maybeBuildLabelText(
   return { polygons, depth };
 }
 
+async function maybeBuildCompartmentLabels(
+  style: 'none' | 'emboss' | 'engrave',
+  labels: ReadonlyArray<string>,
+  cols: number,
+  heightMm: number,
+): Promise<ReadonlyArray<ReadonlyArray<import('@/lib/labels/textToPolygons').Polygon>> | undefined> {
+  if (style === 'none') return undefined;
+  if (labels.every((s) => !s.trim())) return undefined;
+  const font = await getLabelFont();
+  const out: Array<ReadonlyArray<import('@/lib/labels/textToPolygons').Polygon>> = [];
+  for (let i = 0; i < cols; i++) {
+    const text = (labels[i] ?? '').trim();
+    out.push(text ? textToPolygons(font, text, heightMm) : []);
+  }
+  return out;
+}
+
 async function buildManifold(request: GeometryRequest): Promise<{
   m: ManifoldToplevel;
   result: Manifold;
@@ -59,7 +76,20 @@ async function buildManifold(request: GeometryRequest): Promise<{
       request.model.labelHeight,
       request.model.labelDepth,
     );
-    return { m, result: buildScrewOrganizer(m, spec, { ...request.model, labelText }) };
+    const compartmentLabelPolygons = await maybeBuildCompartmentLabels(
+      request.model.compartmentLabelStyle,
+      request.model.compartmentLabels,
+      request.model.cols,
+      request.model.compartmentLabelHeight,
+    );
+    return {
+      m,
+      result: buildScrewOrganizer(m, spec, {
+        ...request.model,
+        labelText,
+        compartmentLabelPolygons,
+      }),
+    };
   }
 
   const bits = bitsForSet(request.model.bitSet, request.model.customBits);

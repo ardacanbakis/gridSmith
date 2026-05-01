@@ -63,6 +63,9 @@ export const DrillBitHolderParamsSchema = z.object({
 });
 export type DrillBitHolderParams = z.infer<typeof DrillBitHolderParamsSchema>;
 
+export const CompartmentLabelStyleSchema = z.enum(['none', 'emboss', 'engrave']);
+export type CompartmentLabelStyle = z.infer<typeof CompartmentLabelStyleSchema>;
+
 export const ScrewOrganizerParamsSchema = z.object({
   kind: z.literal('screwOrganizer'),
   cellsX: z.number().int().min(1).max(20).default(3),
@@ -79,6 +82,10 @@ export const ScrewOrganizerParamsSchema = z.object({
   labelHeight: z.number().min(2).max(20).default(5),
   labelDepth: z.number().min(0.2).max(2.5).default(0.6),
   tiltDegrees: z.number().min(0).max(20).default(8),
+  compartmentLabelStyle: CompartmentLabelStyleSchema.default('none'),
+  compartmentLabels: z.array(z.string().max(8)).default([]),
+  compartmentLabelHeight: z.number().min(2).max(12).default(4),
+  compartmentLabelDepth: z.number().min(0.2).max(2).default(0.4),
 });
 export type ScrewOrganizerParams = z.infer<typeof ScrewOrganizerParamsSchema>;
 

@@ -6,6 +6,7 @@ import {
   BinParamsSchema,
   DrillBitHolderParamsSchema,
   ScrewOrganizerParamsSchema,
+  type CompartmentLabelStyle,
   type LabelStyle,
   type BitSetId,
 } from '@/lib/params/schema';
@@ -246,6 +247,77 @@ function CustomBitsEditor({
   );
 }
 
+const COMPARTMENT_LABEL_PRESETS: Array<{ id: string; label: string; values: string[] }> = [
+  { id: 'metric-coarse', label: 'Metric M2–M8', values: ['M2', 'M3', 'M4', 'M5', 'M6', 'M8'] },
+  { id: 'metric-fine', label: 'Metric M2–M12', values: ['M2', 'M2.5', 'M3', 'M4', 'M5', 'M6', 'M8', 'M10', 'M12'] },
+  { id: 'imperial-num', label: '#4 / #6 / #8 / #10', values: ['#4', '#6', '#8', '#10'] },
+  { id: 'fractional', label: '1/4 / 5/16 / 3/8 / 1/2', values: ['1/4"', '5/16"', '3/8"', '1/2"'] },
+  { id: 'numbers', label: 'Numbers 1–', values: Array.from({ length: 10 }, (_, i) => `${i + 1}`) },
+];
+
+function CompartmentLabelsEditor({
+  cols,
+  values,
+  onChange,
+}: {
+  cols: number;
+  values: string[];
+  onChange: (v: string[]) => void;
+}) {
+  const padded = Array.from({ length: cols }, (_, i) => values[i] ?? '');
+  const update = (i: number, v: string) => {
+    const next = [...padded];
+    next[i] = v.slice(0, 8);
+    onChange(next);
+  };
+
+  return (
+    <div className="flex flex-col gap-1.5">
+      <div className="flex items-center gap-2">
+        <select
+          className="input flex-1 text-xs"
+          defaultValue=""
+          onChange={(e) => {
+            const preset = COMPARTMENT_LABEL_PRESETS.find((p) => p.id === e.target.value);
+            if (preset) onChange(preset.values.slice(0, cols));
+            e.target.value = '';
+          }}
+        >
+          <option value="" disabled>
+            Auto-fill preset…
+          </option>
+          {COMPARTMENT_LABEL_PRESETS.map((p) => (
+            <option key={p.id} value={p.id}>
+              {p.label}
+            </option>
+          ))}
+        </select>
+        <button
+          type="button"
+          className="btn text-xs"
+          onClick={() => onChange([])}
+          title="Clear all"
+        >
+          Clear
+        </button>
+      </div>
+      {padded.map((v, i) => (
+        <div key={i} className="flex items-center gap-2">
+          <span className="text-xs text-text-dim tabular w-8">Col {i + 1}</span>
+          <input
+            type="text"
+            className="input flex-1"
+            value={v}
+            maxLength={8}
+            placeholder={`size ${i + 1}`}
+            onChange={(e) => update(i, e.target.value)}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 type Props = {
   mode?: PanelMode;
   side?: PanelSide;
@@ -417,6 +489,67 @@ export function ParameterPanel({ mode = 'all', side = 'left' }: Props) {
                       onChange={(v) => setModel(ScrewOrganizerParamsSchema.parse({ ...model, labelDepth: v }))}
                       format={len(2)}
                     />
+                  </>
+                )}
+              </Section>
+            )}
+
+            {showFinish && (
+              <Section title="Compartment labels" defaultOpen={model.compartmentLabelStyle !== 'none'}>
+                <SegmentedControl<CompartmentLabelStyle>
+                  value={model.compartmentLabelStyle}
+                  onChange={(v) =>
+                    setModel(ScrewOrganizerParamsSchema.parse({ ...model, compartmentLabelStyle: v }))
+                  }
+                  options={[
+                    { value: 'none', label: 'None' },
+                    { value: 'emboss', label: 'Emboss' },
+                    { value: 'engrave', label: 'Engrave' },
+                  ]}
+                />
+                {model.compartmentLabelStyle !== 'none' && (
+                  <>
+                    <CompartmentLabelsEditor
+                      cols={model.cols}
+                      values={model.compartmentLabels}
+                      onChange={(v) =>
+                        setModel(
+                          ScrewOrganizerParamsSchema.parse({ ...model, compartmentLabels: v }),
+                        )
+                      }
+                    />
+                    <NumberField
+                      label="Text height"
+                      value={model.compartmentLabelHeight}
+                      min={2}
+                      max={12}
+                      step={0.5}
+                      onChange={(v) =>
+                        setModel(
+                          ScrewOrganizerParamsSchema.parse({ ...model, compartmentLabelHeight: v }),
+                        )
+                      }
+                      format={len(1)}
+                    />
+                    <NumberField
+                      label={
+                        model.compartmentLabelStyle === 'engrave' ? 'Engrave depth' : 'Emboss height'
+                      }
+                      value={model.compartmentLabelDepth}
+                      min={0.2}
+                      max={2}
+                      step={0.05}
+                      onChange={(v) =>
+                        setModel(
+                          ScrewOrganizerParamsSchema.parse({ ...model, compartmentLabelDepth: v }),
+                        )
+                      }
+                      format={len(2)}
+                    />
+                    <p className="text-xs text-text-dim leading-snug">
+                      One label per column on the front face. Use Auto-fill for common screw size
+                      sets.
+                    </p>
                   </>
                 )}
               </Section>

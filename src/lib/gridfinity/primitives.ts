@@ -359,6 +359,10 @@ export type ScrewOrganizerOptions = {
   labelStyle: LabelStyle;
   labelText?: LabelTextData;
   tiltDegrees: number;
+  /** Per-column label polygons; index i belongs to column i. Empty arrays skipped. */
+  compartmentLabelPolygons?: ReadonlyArray<ReadonlyArray<Polygon>>;
+  compartmentLabelStyle: 'none' | 'emboss' | 'engrave';
+  compartmentLabelDepth: number;
 };
 
 /**
@@ -412,6 +416,19 @@ export function buildScrewOrganizer(
     bin = applyTextLabel(m, bin, outerD, totalH, opts.labelStyle === 'engraveText', opts.labelText);
   }
 
+  if (opts.compartmentLabelStyle !== 'none' && opts.compartmentLabelPolygons) {
+    bin = applyCompartmentLabels(m, bin, {
+      polygonsPerCol: opts.compartmentLabelPolygons,
+      cols: opts.cols,
+      outerW,
+      outerD,
+      wall,
+      totalH,
+      depth: opts.compartmentLabelDepth,
+      engrave: opts.compartmentLabelStyle === 'engrave',
+    });
+  }
+
   if (opts.stackingLip) {
     const lipOuter = m.Manifold.cube([outerW, outerD, stackLip.height], true)
       .translate([0, 0, totalH + stackLip.height / 2]);
@@ -459,6 +476,46 @@ function applyTextLabel(
     .translate([0, -outerD / 2 + (engrave ? text.depth / 2 : -text.depth / 2), totalH / 2]);
 
   return engrave ? bin.subtract(oriented) : bin.add(oriented);
+}
+
+/**
+ * Place one text label per column on the front (-Y) wall, centred on each
+ * column's X position. Labels are sized by the worker; here we just orient
+ * and union/subtract them.
+ */
+function applyCompartmentLabels(
+  m: ManifoldToplevel,
+  bin: Manifold,
+  args: {
+    polygonsPerCol: ReadonlyArray<ReadonlyArray<Polygon>>;
+    cols: number;
+    outerW: number;
+    outerD: number;
+    wall: number;
+    totalH: number;
+    depth: number;
+    engrave: boolean;
+  },
+): Manifold {
+  const { polygonsPerCol, cols, outerW, outerD, wall, totalH, depth, engrave } = args;
+  const innerW = outerW - 2 * wall;
+  const cellW = (innerW - (cols - 1) * wall) / cols;
+  const startX = -innerW / 2 + cellW / 2;
+  const z = totalH * 0.55;
+
+  let result = bin;
+  for (let i = 0; i < cols; i++) {
+    const polys = polygonsPerCol[i];
+    if (!polys || polys.length === 0) continue;
+    const block = buildTextManifold(m, { polygons: polys, depth });
+    if (!block) continue;
+    const cx = startX + i * (cellW + wall);
+    const oriented = block
+      .rotate([90, 0, 0])
+      .translate([cx, -outerD / 2 + (engrave ? depth / 2 : -depth / 2), z]);
+    result = engrave ? result.subtract(oriented) : result.add(oriented);
+  }
+  return result;
 }
 
 /**
