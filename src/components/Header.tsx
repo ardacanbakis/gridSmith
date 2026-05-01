@@ -4,6 +4,7 @@ import {
   ChevronDown,
   Columns2,
   Download,
+  FolderOpen,
   Grid2x2,
   Home,
   Maximize,
@@ -29,6 +30,7 @@ import type { ExportFormat } from '@/lib/geometry/types';
 type Props = {
   onExport: (format: ExportFormat) => void;
   exporting: boolean;
+  onOpenLibrary: () => void;
 };
 
 const FORMATS: Array<{ id: ExportFormat; label: string; hint: string }> = [
@@ -76,7 +78,7 @@ function Divider() {
   return <div className="h-5 w-px bg-border mx-1.5" />;
 }
 
-export function Header({ onExport, exporting }: Props) {
+export function Header({ onExport, exporting, onOpenLibrary }: Props) {
   const { design, setUnits } = useDesignStore();
   const { theme, toggle } = useThemeStore();
   const {
@@ -294,6 +296,10 @@ export function Header({ onExport, exporting }: Props) {
 
         <IconButton title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`} onClick={toggle}>
           {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+        </IconButton>
+
+        <IconButton title="Saved designs" onClick={onOpenLibrary}>
+          <FolderOpen size={16} />
         </IconButton>
 
         <IconButton title="Copy share link" onClick={onShare}>

@@ -134,6 +134,8 @@ const api: GeometryWorkerApi = {
       const { result, stats } = await buildManifold(request);
       const mesh = toMeshData(result);
       const box = result.boundingBox();
+      const volumeMm3 = result.volume();
+      const surfaceMm2 = result.surfaceArea();
       result.delete();
       return {
         ok: true,
@@ -142,7 +144,7 @@ const api: GeometryWorkerApi = {
           min: [box.min[0], box.min[1], box.min[2]],
           max: [box.max[0], box.max[1], box.max[2]],
         },
-        stats,
+        stats: { ...stats, volumeMm3, surfaceMm2 },
       };
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : String(err) };

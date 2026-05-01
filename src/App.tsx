@@ -4,6 +4,7 @@ import { Header } from './components/Header';
 import { ParameterPanel } from './components/ParameterPanel';
 import { Viewport } from './components/Viewport';
 import { InfoOverlay } from './components/InfoOverlay';
+import { DesignLibraryModal } from './components/DesignLibraryModal';
 import { useDesignStore } from './store/designStore';
 import { useViewportStore } from './store/viewportStore';
 import { getWorker } from './lib/geometry/workerClient';
@@ -24,6 +25,7 @@ export default function App() {
   const [building, setBuilding] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [libraryOpen, setLibraryOpen] = useState(false);
   const buildSeq = useRef(0);
 
   useEffect(() => {
@@ -97,12 +99,16 @@ export default function App() {
 
   return (
     <div className="h-full flex flex-col">
-      <Header onExport={onExport} exporting={exporting} />
+      <Header
+        onExport={onExport}
+        exporting={exporting}
+        onOpenLibrary={() => setLibraryOpen(true)}
+      />
       <div className="flex-1 flex min-h-0">
         <ParameterPanel mode={duoSidebar ? 'core' : 'all'} side="left" />
         <main className="flex-1 relative min-w-0">
           <Viewport mesh={mesh} loading={building} gridUnit={design.spec.gridUnit} />
-          <InfoOverlay bbox={bbox} />
+          <InfoOverlay bbox={bbox} stats={stats} />
           {stats && stats.droppedHoles !== undefined && stats.droppedHoles > 0 && (
             <div className="absolute top-3 left-1/2 -translate-x-1/2 panel rounded px-3 py-2 text-xs">
               <span className="warn-badge mr-2">too many bits</span>
@@ -119,6 +125,7 @@ export default function App() {
         </main>
         {duoSidebar && <ParameterPanel mode="finish" side="right" />}
       </div>
+      <DesignLibraryModal open={libraryOpen} onClose={() => setLibraryOpen(false)} />
     </div>
   );
 }

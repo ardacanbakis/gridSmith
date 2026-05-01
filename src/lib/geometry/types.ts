@@ -9,6 +9,10 @@ export type MeshData = {
 export type BuildStats = {
   placedHoles?: number;
   droppedHoles?: number;
+  /** Volume of the part in cubic mm. */
+  volumeMm3?: number;
+  /** Surface area of the part in square mm. */
+  surfaceMm2?: number;
 };
 
 export type GeometryRequest = {
