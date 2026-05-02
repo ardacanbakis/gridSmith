@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - claude/gridfinity-box-generator-6Xhaq
+      - claude/fix-github-pages-rename-Ds6rK
   workflow_dispatch:
 
 permissions:
