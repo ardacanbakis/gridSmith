@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { Box, ChevronDown, ChevronRight, Drill, LayoutGrid, Plus, Wrench, X } from 'lucide-react';
+import { Archive, Box, ChevronDown, ChevronRight, LayoutGrid, Plus, Wrench, X } from 'lucide-react';
 import { useDesignStore } from '@/store/designStore';
 import {
   BaseplateParamsSchema,
@@ -9,6 +9,7 @@ import {
   type CompartmentLabelStyle,
   type LabelStyle,
   type BitSetId,
+  type Units,
 } from '@/lib/params/schema';
 import { STANDARD, isStandardSpec } from '@/lib/gridfinity/spec';
 import { BIT_SETS } from '@/lib/gridfinity/bitSets';
@@ -22,7 +23,7 @@ type ModelKind = ReturnType<typeof useDesignStore.getState>['design']['model']['
 const MODEL_OPTIONS: Array<{ kind: ModelKind; label: string; icon: ReactNode }> = [
   { kind: 'bin', label: 'Bin', icon: <Box size={16} /> },
   { kind: 'baseplate', label: 'Plate', icon: <LayoutGrid size={16} /> },
-  { kind: 'drillBitHolder', label: 'Drill bits', icon: <Drill size={16} /> },
+  { kind: 'drillBitHolder', label: 'Organizers', icon: <Archive size={16} /> },
   { kind: 'screwOrganizer', label: 'Screws', icon: <Wrench size={16} /> },
 ];
 
@@ -193,6 +194,102 @@ function SegmentedControl<T extends string>({
   );
 }
 
+type TemplateEntry = { id: Exclude<BitSetId, 'custom'>; imperialOnly?: true };
+
+const TEMPLATE_GROUPS: Array<{ label: string; entries: TemplateEntry[] }> = [
+  {
+    label: 'Drill bits',
+    entries: [
+      { id: 'metric-basic' },
+      { id: 'metric-fine' },
+      { id: 'fractional-inch', imperialOnly: true },
+      { id: 'letter', imperialOnly: true },
+      { id: 'number', imperialOnly: true },
+    ],
+  },
+  {
+    label: 'Router bits',
+    entries: [
+      { id: 'router-6mm' },
+      { id: 'router-8mm' },
+      { id: 'router-12mm' },
+      { id: 'router-quarter', imperialOnly: true },
+      { id: 'router-eighth', imperialOnly: true },
+    ],
+  },
+  {
+    label: 'Batteries',
+    entries: [
+      { id: 'battery-aa' },
+      { id: 'battery-aaa' },
+      { id: 'battery-18650-4' },
+      { id: 'battery-18650-8' },
+      { id: 'battery-cr2032' },
+      { id: 'battery-mixed' },
+    ],
+  },
+];
+
+function TemplateBrowser({
+  value,
+  units,
+  onChange,
+}: {
+  value: BitSetId;
+  units: Units;
+  onChange: (id: BitSetId) => void;
+}) {
+  return (
+    <div className="flex flex-col gap-3">
+      {TEMPLATE_GROUPS.map((group) => {
+        const visible = group.entries.filter((e) => !e.imperialOnly || units === 'imperial');
+        if (visible.length === 0) return null;
+        return (
+          <div key={group.label} className="flex flex-col gap-1">
+            <span className="label">{group.label}</span>
+            {visible.map(({ id }) => {
+              const bs = BIT_SETS[id];
+              const selected = value === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => onChange(id)}
+                  className={[
+                    'text-left px-2.5 py-2 rounded-md border transition-colors',
+                    selected
+                      ? 'border-accent bg-accent/10'
+                      : 'border-border hover:border-border-strong hover:bg-bg-elevated',
+                  ].join(' ')}
+                >
+                  <p className={`text-xs font-medium ${selected ? 'text-accent' : 'text-text'}`}>{bs.label}</p>
+                  <p className="text-[11px] text-text-dim mt-0.5">{bs.description}</p>
+                </button>
+              );
+            })}
+          </div>
+        );
+      })}
+      <div className="flex flex-col gap-1">
+        <span className="label">Custom</span>
+        <button
+          type="button"
+          onClick={() => onChange('custom')}
+          className={[
+            'text-left px-2.5 py-2 rounded-md border transition-colors',
+            value === 'custom'
+              ? 'border-accent bg-accent/10'
+              : 'border-border hover:border-border-strong hover:bg-bg-elevated',
+          ].join(' ')}
+        >
+          <p className={`text-xs font-medium ${value === 'custom' ? 'text-accent' : 'text-text'}`}>Custom list…</p>
+          <p className="text-[11px] text-text-dim mt-0.5">Enter your own pocket diameters in mm.</p>
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function CustomBitsEditor({
   bits,
   onChange,
@@ -247,23 +344,26 @@ function CustomBitsEditor({
   );
 }
 
-const COMPARTMENT_LABEL_PRESETS: Array<{ id: string; label: string; values: string[] }> = [
+const COMPARTMENT_LABEL_PRESETS: Array<{ id: string; label: string; values: string[]; imperialOnly?: true }> = [
   { id: 'metric-coarse', label: 'Metric M2–M8', values: ['M2', 'M3', 'M4', 'M5', 'M6', 'M8'] },
   { id: 'metric-fine', label: 'Metric M2–M12', values: ['M2', 'M2.5', 'M3', 'M4', 'M5', 'M6', 'M8', 'M10', 'M12'] },
-  { id: 'imperial-num', label: '#4 / #6 / #8 / #10', values: ['#4', '#6', '#8', '#10'] },
-  { id: 'fractional', label: '1/4 / 5/16 / 3/8 / 1/2', values: ['1/4"', '5/16"', '3/8"', '1/2"'] },
-  { id: 'numbers', label: 'Numbers 1–', values: Array.from({ length: 10 }, (_, i) => `${i + 1}`) },
+  { id: 'imperial-num', label: '#4 / #6 / #8 / #10', values: ['#4', '#6', '#8', '#10'], imperialOnly: true },
+  { id: 'fractional', label: '1/4 / 5/16 / 3/8 / 1/2', values: ['1/4"', '5/16"', '3/8"', '1/2"'], imperialOnly: true },
+  { id: 'numbers', label: 'Numbers 1–10', values: Array.from({ length: 10 }, (_, i) => `${i + 1}`) },
 ];
 
 function CompartmentLabelsEditor({
   cols,
   values,
   onChange,
+  units,
 }: {
   cols: number;
   values: string[];
   onChange: (v: string[]) => void;
+  units: Units;
 }) {
+  const availablePresets = COMPARTMENT_LABEL_PRESETS.filter((p) => !p.imperialOnly || units === 'imperial');
   const padded = Array.from({ length: cols }, (_, i) => values[i] ?? '');
   const update = (i: number, v: string) => {
     const next = [...padded];
@@ -278,7 +378,7 @@ function CompartmentLabelsEditor({
           className="input flex-1 text-xs"
           defaultValue=""
           onChange={(e) => {
-            const preset = COMPARTMENT_LABEL_PRESETS.find((p) => p.id === e.target.value);
+            const preset = availablePresets.find((p) => p.id === e.target.value);
             if (preset) onChange(preset.values.slice(0, cols));
             e.target.value = '';
           }}
@@ -286,7 +386,7 @@ function CompartmentLabelsEditor({
           <option value="" disabled>
             Auto-fill preset…
           </option>
-          {COMPARTMENT_LABEL_PRESETS.map((p) => (
+          {availablePresets.map((p) => (
             <option key={p.id} value={p.id}>
               {p.label}
             </option>
@@ -445,7 +545,7 @@ export function ParameterPanel({ mode = 'all', side = 'left' }: Props) {
             )}
 
             {showFinish && (
-              <Section title="Label">
+              <Section title="Label" defaultOpen={false}>
                 <SegmentedControl<LabelStyle>
                   value={model.labelStyle}
                   onChange={(v) => setModel(ScrewOrganizerParamsSchema.parse({ ...model, labelStyle: v }))}
@@ -512,6 +612,7 @@ export function ParameterPanel({ mode = 'all', side = 'left' }: Props) {
                     <CompartmentLabelsEditor
                       cols={model.cols}
                       values={model.compartmentLabels}
+                      units={units}
                       onChange={(v) =>
                         setModel(
                           ScrewOrganizerParamsSchema.parse({ ...model, compartmentLabels: v }),
@@ -556,7 +657,7 @@ export function ParameterPanel({ mode = 'all', side = 'left' }: Props) {
             )}
 
             {showFinish && (
-              <Section title="Finish">
+              <Section title="Finish" defaultOpen={false}>
                 <Toggle
                   label="Stacking lip"
                   value={model.stackingLip}
@@ -605,29 +706,14 @@ export function ParameterPanel({ mode = 'all', side = 'left' }: Props) {
             )}
 
             {showCore && (
-              <Section title="Bit set">
-                <label className="flex flex-col gap-1">
-                  <span className="label normal-case">Preset</span>
-                  <select
-                    className="input"
-                    value={model.bitSet}
-                    onChange={(e) =>
-                      setModel(
-                        DrillBitHolderParamsSchema.parse({
-                          ...model,
-                          bitSet: e.target.value as BitSetId,
-                        }),
-                      )
-                    }
-                  >
-                    {Object.values(BIT_SETS).map((bs) => (
-                      <option key={bs.id} value={bs.id}>
-                        {bs.label} — {bs.diameters.length} bits
-                      </option>
-                    ))}
-                    <option value="custom">Custom list…</option>
-                  </select>
-                </label>
+              <Section title="Template">
+                <TemplateBrowser
+                  value={model.bitSet}
+                  units={units}
+                  onChange={(id) =>
+                    setModel(DrillBitHolderParamsSchema.parse({ ...model, bitSet: id }))
+                  }
+                />
                 {model.bitSet === 'custom' && (
                   <CustomBitsEditor
                     bits={model.customBits}
@@ -640,7 +726,7 @@ export function ParameterPanel({ mode = 'all', side = 'left' }: Props) {
             )}
 
             {showFinish && (
-              <Section title="Holes">
+              <Section title="Holes" defaultOpen={false}>
                 <NumberField
                   label="Hole depth"
                   value={model.holeDepth}
@@ -689,7 +775,7 @@ export function ParameterPanel({ mode = 'all', side = 'left' }: Props) {
             )}
 
             {showFinish && (
-              <Section title="Finish">
+              <Section title="Finish" defaultOpen={false}>
                 <Toggle
                   label="Stacking lip"
                   value={model.stackingLip}
@@ -769,7 +855,7 @@ export function ParameterPanel({ mode = 'all', side = 'left' }: Props) {
             )}
 
             {showCore && (
-              <Section title="Compartments">
+              <Section title="Compartments" defaultOpen={false}>
                 <NumberField
                   label="Dividers X"
                   value={model.divX}
@@ -798,7 +884,7 @@ export function ParameterPanel({ mode = 'all', side = 'left' }: Props) {
             )}
 
             {showFinish && (
-              <Section title="Label">
+              <Section title="Label" defaultOpen={false}>
                 <SegmentedControl<LabelStyle>
                   value={model.labelStyle}
                   onChange={(v) => setModel(BinParamsSchema.parse({ ...model, labelStyle: v }))}
@@ -852,7 +938,7 @@ export function ParameterPanel({ mode = 'all', side = 'left' }: Props) {
             )}
 
             {showFinish && (
-              <Section title="Mounting">
+              <Section title="Mounting" defaultOpen={false}>
                 <Toggle
                   label="Magnet holes"
                   value={model.magnetHoles}
@@ -903,7 +989,7 @@ export function ParameterPanel({ mode = 'all', side = 'left' }: Props) {
             )}
 
             {showFinish && (
-              <Section title="Mounting">
+              <Section title="Mounting" defaultOpen={false}>
                 <Toggle
                   label="Magnet holes"
                   value={model.magnetHoles}

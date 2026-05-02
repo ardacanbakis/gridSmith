@@ -12,6 +12,17 @@ export const BitSetIdSchema = z.enum([
   'fractional-inch',
   'letter',
   'number',
+  'router-quarter',
+  'router-eighth',
+  'router-6mm',
+  'router-8mm',
+  'router-12mm',
+  'battery-aa',
+  'battery-aaa',
+  'battery-18650-4',
+  'battery-18650-8',
+  'battery-cr2032',
+  'battery-mixed',
   'custom',
 ]);
 export type BitSetId = z.infer<typeof BitSetIdSchema>;
