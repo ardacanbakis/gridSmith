@@ -15,8 +15,13 @@ describe('bitsForSet', () => {
     expect(bits.map((b) => b.mm)).toEqual([2.5, 3, 4]);
   });
 
-  it('exposes ten non-custom presets', () => {
-    expect(Object.keys(BIT_SETS)).toHaveLength(10);
+  it('exposes sixteen non-custom presets', () => {
+    expect(Object.keys(BIT_SETS)).toHaveLength(16);
+  });
+
+  it('battery presets list six options', () => {
+    const ids = Object.keys(BIT_SETS).filter((k) => k.startsWith('battery-'));
+    expect(ids).toHaveLength(6);
   });
 
   it('router shank set has uniform diameters', () => {

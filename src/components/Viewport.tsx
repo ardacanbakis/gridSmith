@@ -40,11 +40,14 @@ function PartMesh({ data, color }: { data: MeshData; color: string }) {
 
   return (
     <mesh geometry={geometry} rotation={[-Math.PI / 2, 0, 0]} castShadow receiveShadow>
-      <meshStandardMaterial
+      <meshPhysicalMaterial
         color={color}
-        metalness={0.1}
-        roughness={0.5}
-        envMapIntensity={0.6}
+        metalness={0.05}
+        roughness={0.42}
+        clearcoat={0.18}
+        clearcoatRoughness={0.45}
+        sheen={0.05}
+        envMapIntensity={1.0}
       />
     </mesh>
   );
@@ -230,22 +233,27 @@ export function Viewport({ mesh, loading, gridUnit, cameraPosition }: Props) {
       >
         <color attach="background" args={[colors.canvasBg]} />
 
-        <hemisphereLight args={[0xffffff, 0x1a1f2c, theme === 'light' ? 0.9 : 0.55]} />
+        <hemisphereLight args={[0xffffff, 0x1a1f2c, theme === 'light' ? 1.0 : 0.6]} />
         <directionalLight
-          position={[plateW * 0.5, 280, plateD * 0.4]}
-          intensity={theme === 'light' ? 1.4 : 1.1}
+          position={[plateW * 0.5, 320, plateD * 0.4]}
+          intensity={theme === 'light' ? 1.5 : 1.2}
           castShadow
           shadow-mapSize-width={2048}
           shadow-mapSize-height={2048}
-          shadow-camera-left={-300}
-          shadow-camera-right={300}
-          shadow-camera-top={300}
-          shadow-camera-bottom={-300}
+          shadow-camera-left={-320}
+          shadow-camera-right={320}
+          shadow-camera-top={320}
+          shadow-camera-bottom={-320}
           shadow-camera-near={0.5}
           shadow-camera-far={1500}
           shadow-bias={-0.0001}
         />
-        <directionalLight position={[-150, 60, -100]} intensity={0.35} />
+        {/* Soft fill from the opposite quadrant. */}
+        <directionalLight position={[-180, 90, -120]} intensity={0.45} />
+        {/* Rim light from behind to pop the silhouette against the plate. */}
+        <directionalLight position={[0, 180, -260]} intensity={0.35} color="#a8c4ff" />
+        {/* Ambient bounce, theme-aware. */}
+        <ambientLight intensity={theme === 'light' ? 0.35 : 0.18} />
 
         {gridVisible && <ExtendedGrid cellSize={gridUnit} themeKey={theme} />}
 

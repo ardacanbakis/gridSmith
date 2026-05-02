@@ -15,6 +15,12 @@ export type BitSetId =
   | 'router-6mm'
   | 'router-8mm'
   | 'router-12mm'
+  | 'battery-aa'
+  | 'battery-aaa'
+  | 'battery-18650-4'
+  | 'battery-18650-8'
+  | 'battery-cr2032'
+  | 'battery-mixed'
   | 'custom';
 
 export type BitSet = {
@@ -101,6 +107,21 @@ function routerShank(id: Exclude<BitSetId, 'custom'>, label: string, mmDiameter:
   };
 }
 
+function batterySet(
+  id: Exclude<BitSetId, 'custom'>,
+  label: string,
+  mmDiameter: number,
+  count: number,
+  cellLabel: string,
+  description: string,
+): BitSet {
+  const diameters: Array<{ mm: number; label: string }> = [];
+  for (let i = 1; i <= count; i++) {
+    diameters.push({ mm: mmDiameter, label: `${cellLabel} #${i}` });
+  }
+  return { id, label, description, diameters };
+}
+
 export const BIT_SETS: Record<Exclude<BitSetId, 'custom'>, BitSet> = {
   'metric-basic': {
     id: 'metric-basic',
@@ -137,6 +158,24 @@ export const BIT_SETS: Record<Exclude<BitSetId, 'custom'>, BitSet> = {
   'router-6mm': routerShank('router-6mm', 'Router 6 mm shank ×12', 6, 12, '6 mm'),
   'router-8mm': routerShank('router-8mm', 'Router 8 mm shank ×9', 8, 9, '8 mm'),
   'router-12mm': routerShank('router-12mm', 'Router 12 mm shank ×6', 12, 6, '12 mm'),
+  'battery-aa': batterySet('battery-aa', 'Battery AA ×4', 14.7, 4, 'AA', 'AA cells (14.5 mm + 0.2 mm slip).'),
+  'battery-aaa': batterySet('battery-aaa', 'Battery AAA ×4', 10.7, 4, 'AAA', 'AAA cells (10.5 mm + 0.2 mm slip).'),
+  'battery-18650-4': batterySet('battery-18650-4', 'Battery 18650 ×4', 18.7, 4, '18650', '18650 Li-ion cells (18.5 mm + 0.2 mm slip).'),
+  'battery-18650-8': batterySet('battery-18650-8', 'Battery 18650 ×8', 18.7, 8, '18650', '18650 Li-ion cells, 8-pack.'),
+  'battery-cr2032': batterySet('battery-cr2032', 'Coin CR2032 ×8', 20.4, 8, 'CR2032', 'Coin cells, drop-in pockets.'),
+  'battery-mixed': {
+    id: 'battery-mixed',
+    label: 'Battery Mixed (AA/AAA/18650)',
+    description: '2× AA, 2× AAA, 2× 18650 in one bin.',
+    diameters: [
+      { mm: 18.7, label: '18650 #1' },
+      { mm: 18.7, label: '18650 #2' },
+      { mm: 14.7, label: 'AA #1' },
+      { mm: 14.7, label: 'AA #2' },
+      { mm: 10.7, label: 'AAA #1' },
+      { mm: 10.7, label: 'AAA #2' },
+    ],
+  },
 };
 
 export function bitsForSet(id: BitSetId, customMm: ReadonlyArray<number>): ReadonlyArray<{ mm: number; label: string }> {

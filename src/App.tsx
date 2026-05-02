@@ -27,6 +27,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [libraryOpen, setLibraryOpen] = useState(false);
   const buildSeq = useRef(0);
+  const firstBuild = useRef(true);
 
   useEffect(() => {
     const seq = ++buildSeq.current;
@@ -41,6 +42,11 @@ export default function App() {
           setMesh(res.mesh);
           setBbox(res.bbox);
           setStats(res.stats ?? null);
+          if (firstBuild.current) {
+            firstBuild.current = false;
+            // Defer one frame so Bounds has the new mesh registered.
+            requestAnimationFrame(() => fit());
+          }
         } else {
           setError(res.error);
         }
