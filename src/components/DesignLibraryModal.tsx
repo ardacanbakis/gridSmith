@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Save, Trash2, Upload, X } from 'lucide-react';
 import { useDesignStore } from '@/store/designStore';
 import { useDesignLibraryStore, type SavedDesign } from '@/store/designLibraryStore';
@@ -28,6 +29,7 @@ function describe(saved: SavedDesign): string {
 }
 
 export function DesignLibraryModal({ open, onClose }: Props) {
+  const { t } = useTranslation();
   const design = useDesignStore((s) => s.design);
   const setDesign = useDesignStore((s) => s.setDesign);
   const { items, save, rename, remove } = useDesignLibraryStore();
@@ -55,12 +57,12 @@ export function DesignLibraryModal({ open, onClose }: Props) {
   };
 
   const onRename = (saved: SavedDesign) => {
-    const next = window.prompt('New name', saved.name);
+    const next = window.prompt(t('library.renamePrompt'), saved.name);
     if (next != null) rename(saved.id, next);
   };
 
   const onDelete = (saved: SavedDesign) => {
-    if (window.confirm(`Delete "${saved.name}"?`)) remove(saved.id);
+    if (window.confirm(t('library.deleteConfirm', { name: saved.name }))) remove(saved.id);
   };
 
   return (
@@ -73,7 +75,7 @@ export function DesignLibraryModal({ open, onClose }: Props) {
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-          <h2 className="text-sm font-semibold">Saved designs</h2>
+          <h2 className="text-sm font-semibold">{t('library.title')}</h2>
           <button onClick={onClose} className="text-text-muted hover:text-text">
             <X size={16} />
           </button>
@@ -83,7 +85,7 @@ export function DesignLibraryModal({ open, onClose }: Props) {
           <input
             className="input flex-1"
             type="text"
-            placeholder="Name this design…"
+            placeholder={t('library.namePlaceholder')}
             value={name}
             maxLength={60}
             onChange={(e) => setName(e.target.value)}
@@ -93,14 +95,14 @@ export function DesignLibraryModal({ open, onClose }: Props) {
           />
           <button className="btn-primary flex items-center gap-1.5" onClick={onSave}>
             <Save size={14} />
-            Save
+            {t('library.save')}
           </button>
         </div>
 
         <div className="flex-1 overflow-y-auto">
           {items.length === 0 ? (
             <p className="px-4 py-8 text-center text-xs text-text-dim">
-              No saved designs yet. Save the current design to start a library.
+              {t('library.empty')}
             </p>
           ) : (
             <ul className="divide-y divide-border">
@@ -111,20 +113,20 @@ export function DesignLibraryModal({ open, onClose }: Props) {
                       type="button"
                       onClick={() => onRename(it)}
                       className="text-sm text-text font-medium truncate text-left"
-                      title="Click to rename"
+                      title={t('library.renameTitle')}
                     >
                       {it.name}
                     </button>
                     <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button
-                        title="Load"
+                        title={t('library.loadTitle')}
                         onClick={() => onLoad(it)}
                         className="p-1 text-text-muted hover:text-accent"
                       >
                         <Upload size={14} />
                       </button>
                       <button
-                        title="Delete"
+                        title={t('library.deleteTitle')}
                         onClick={() => onDelete(it)}
                         className="p-1 text-text-muted hover:text-red-400"
                       >

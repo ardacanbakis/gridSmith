@@ -1,0 +1,100 @@
+{
+  "app": {
+    "title": "Gridsmith",
+    "tagline": "Custom bins, built your way."
+  },
+  "header": {
+    "recenter": "Recenter view (R)",
+    "fit": "Fit to model (F)",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "toggleGrid": "Toggle grid",
+    "togglePlate": "Toggle build plate",
+    "duoSingle": "Single sidebar",
+    "duoDual": "Dual sidebar",
+    "exitFullscreen": "Exit fullscreen",
+    "fullscreen": "Fullscreen",
+    "undo": "Undo (Ctrl+Z)",
+    "redo": "Redo (Ctrl+Shift+Z)",
+    "unitMm": "mm",
+    "unitIn": "in",
+    "themeDark": "Switch to dark theme",
+    "themeLight": "Switch to light theme",
+    "savedDesigns": "Saved designs",
+    "copyShareLink": "Copy share link",
+    "export": "Export",
+    "exporting": "Exporting…",
+    "pickFormat": "Pick export format"
+  },
+  "format": {
+    "stl": "STL",
+    "stlHint": "Universal slicer-ready mesh.",
+    "3mf": "3MF",
+    "3mfHint": "Lossless, multi-material capable.",
+    "step": "STEP",
+    "stepHint": "CAD-ready — Fusion 360, FreeCAD, SolidWorks."
+  },
+  "infoOverlay": {
+    "fitsPlate": "Fits plate",
+    "exceedsPlate": "exceeds plate",
+    "plaPer": "g PLA",
+    "printTime": "~{{time}} print"
+  },
+  "library": {
+    "title": "Saved designs",
+    "namePlaceholder": "Name this design…",
+    "save": "Save",
+    "empty": "No saved designs yet. Save the current design to start a library.",
+    "renamePrompt": "New name",
+    "deleteConfirm": "Delete \"{{name}}\"?",
+    "loadTitle": "Load",
+    "deleteTitle": "Delete",
+    "renameTitle": "Click to rename"
+  },
+  "model": {
+    "bin": "Bin",
+    "baseplate": "Baseplate",
+    "drillBitHolder": "Organizers",
+    "screwOrganizer": "Screw organizer"
+  },
+  "param": {
+    "gridSize": "Grid size",
+    "cellsX": "Width (cells)",
+    "cellsY": "Depth (cells)",
+    "heightUnits": "Height (units)",
+    "gridUnit": "Grid unit (mm)",
+    "heightUnit": "Height unit (mm)",
+    "template": "Template",
+    "customBits": "Custom bit diameters (mm)",
+    "holeDepth": "Hole depth (mm)",
+    "holeSpacing": "Hole spacing (mm)",
+    "holeTolerance": "Hole tolerance (mm)",
+    "cols": "Columns",
+    "rows": "Rows",
+    "compartmentSize": "Compartment size",
+    "tiltDegrees": "Tilt (degrees)",
+    "wallThickness": "Wall thickness (mm)",
+    "floorThickness": "Floor thickness (mm)",
+    "scoopRamp": "Scoop ramp",
+    "magnetHoles": "Magnet holes",
+    "screwHoles": "Screw holes",
+    "stackLip": "Stacking lip",
+    "labelStyle": "Label style",
+    "labelText": "Label text",
+    "labelHeight": "Label height (mm)",
+    "labelDepth": "Label depth (mm)",
+    "compartmentLabelStyle": "Compartment labels",
+    "compartmentLabelHeight": "Label height (mm)",
+    "baseplateStyle": "Style",
+    "finish": "Finish",
+    "holes": "Holes",
+    "label": "Label",
+    "mounting": "Mounting",
+    "compartments": "Compartments"
+  },
+  "warning": {
+    "tooManyBits": "too many bits",
+    "tooManyBitsDetail": "{{placed}} placed · {{dropped}} dropped — increase bin size or reduce spacing.",
+    "buildError": "Build error"
+  }
+}

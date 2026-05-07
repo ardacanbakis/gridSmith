@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useStore } from 'zustand';
 import {
   ChevronDown,
@@ -33,11 +34,7 @@ type Props = {
   onOpenLibrary: () => void;
 };
 
-const FORMATS: Array<{ id: ExportFormat; label: string; hint: string }> = [
-  { id: 'stl',  label: 'STL',  hint: 'Universal slicer-ready mesh.' },
-  { id: '3mf',  label: '3MF',  hint: 'Lossless, multi-material capable.' },
-  { id: 'step', label: 'STEP', hint: 'CAD-ready — Fusion 360, FreeCAD, SolidWorks.' },
-];
+const FORMAT_IDS: ExportFormat[] = ['stl', '3mf', 'step'];
 
 function IconButton({
   title,
@@ -80,6 +77,12 @@ function Divider() {
 }
 
 export function Header({ onExport, exporting, onOpenLibrary }: Props) {
+  const { t } = useTranslation();
+  const formats = FORMAT_IDS.map((id) => ({
+    id,
+    label: t(`format.${id}`),
+    hint: t(`format.${id}Hint`),
+  }));
   const { design, setUnits } = useDesignStore();
   const { theme, toggle } = useThemeStore();
   const {
@@ -113,7 +116,7 @@ export function Header({ onExport, exporting, onOpenLibrary }: Props) {
   const [exportOpen, setExportOpen] = useState(false);
   const exportRef = useRef<HTMLDivElement>(null);
   const [format, setFormat] = useState<ExportFormat>('stl');
-  const activeFormat = FORMATS.find((f) => f.id === format)!;
+  const activeFormat = formats.find((f) => f.id === format)!;
 
   const [isFullscreen, setIsFullscreen] = useState(
     typeof document !== 'undefined' && document.fullscreenElement != null,
@@ -170,16 +173,16 @@ export function Header({ onExport, exporting, onOpenLibrary }: Props) {
       <div className="flex-1" />
 
       <Group>
-        <IconButton title="Recenter view (R)" onClick={recenter}>
+        <IconButton title={t('header.recenter')} onClick={recenter}>
           <Home size={16} />
         </IconButton>
-        <IconButton title="Fit to model (F)" onClick={fit}>
+        <IconButton title={t('header.fit')} onClick={fit}>
           <Maximize2 size={16} />
         </IconButton>
-        <IconButton title="Zoom in" onClick={zoomIn}>
+        <IconButton title={t('header.zoomIn')} onClick={zoomIn}>
           <ZoomIn size={16} />
         </IconButton>
-        <IconButton title="Zoom out" onClick={zoomOut}>
+        <IconButton title={t('header.zoomOut')} onClick={zoomOut}>
           <ZoomOut size={16} />
         </IconButton>
       </Group>
@@ -187,16 +190,16 @@ export function Header({ onExport, exporting, onOpenLibrary }: Props) {
       <Divider />
 
       <Group>
-        <IconButton title="Toggle grid" active={gridVisible} onClick={toggleGrid}>
+        <IconButton title={t('header.toggleGrid')} active={gridVisible} onClick={toggleGrid}>
           <Grid2x2 size={16} />
         </IconButton>
-        <IconButton title="Toggle build plate" active={plateVisible} onClick={togglePlate}>
+        <IconButton title={t('header.togglePlate')} active={plateVisible} onClick={togglePlate}>
           {plateVisible ? <Square size={16} /> : <SquareDashed size={16} />}
         </IconButton>
-        <IconButton title={duoView ? 'Single sidebar' : 'Dual sidebar'} active={duoView} onClick={toggleDuoView}>
+        <IconButton title={duoView ? t('header.duoSingle') : t('header.duoDual')} active={duoView} onClick={toggleDuoView}>
           <Columns2 size={16} />
         </IconButton>
-        <IconButton title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'} onClick={onFullscreen}>
+        <IconButton title={isFullscreen ? t('header.exitFullscreen') : t('header.fullscreen')} onClick={onFullscreen}>
           {isFullscreen ? <Minimize size={16} /> : <Maximize size={16} />}
         </IconButton>
       </Group>
@@ -204,10 +207,10 @@ export function Header({ onExport, exporting, onOpenLibrary }: Props) {
       <Divider />
 
       <Group>
-        <IconButton title="Undo (Ctrl+Z)" disabled={past === 0} onClick={() => undo(1)}>
+        <IconButton title={t('header.undo')} disabled={past === 0} onClick={() => undo(1)}>
           <Undo2 size={16} />
         </IconButton>
-        <IconButton title="Redo (Ctrl+Shift+Z)" disabled={future === 0} onClick={() => redo(1)}>
+        <IconButton title={t('header.redo')} disabled={future === 0} onClick={() => redo(1)}>
           <Redo2 size={16} />
         </IconButton>
       </Group>
@@ -285,25 +288,25 @@ export function Header({ onExport, exporting, onOpenLibrary }: Props) {
             className={`px-2 py-1 ${design.units === 'metric' ? 'bg-accent text-accent-fg' : 'text-text-muted'}`}
             onClick={() => setUnits('metric')}
           >
-            mm
+            {t('header.unitMm')}
           </button>
           <button
             className={`px-2 py-1 ${design.units === 'imperial' ? 'bg-accent text-accent-fg' : 'text-text-muted'}`}
             onClick={() => setUnits('imperial')}
           >
-            in
+            {t('header.unitIn')}
           </button>
         </div>
 
-        <IconButton title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} theme`} onClick={toggle}>
+        <IconButton title={t(theme === 'dark' ? 'header.themeLight' : 'header.themeDark')} onClick={toggle}>
           {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
         </IconButton>
 
-        <IconButton title="Saved designs" onClick={onOpenLibrary}>
+        <IconButton title={t('header.savedDesigns')} onClick={onOpenLibrary}>
           <FolderOpen size={16} />
         </IconButton>
 
-        <IconButton title="Copy share link" onClick={onShare}>
+        <IconButton title={t('header.copyShareLink')} onClick={onShare}>
           <Share2 size={16} />
         </IconButton>
 
@@ -314,19 +317,19 @@ export function Header({ onExport, exporting, onOpenLibrary }: Props) {
             disabled={exporting}
           >
             <Download size={14} />
-            {exporting ? 'Exporting…' : activeFormat.label}
+            {exporting ? t('header.exporting') : activeFormat.label}
           </button>
           <button
             className="btn-primary rounded-l-none border-l border-accent-fg/30 px-2"
             onClick={() => setExportOpen((o) => !o)}
             disabled={exporting}
-            aria-label="Pick export format"
+            aria-label={t('header.pickFormat')}
           >
             <ChevronDown size={14} />
           </button>
           {exportOpen && (
             <div className="absolute right-0 top-full mt-1 panel rounded shadow-lg w-56 z-20">
-              {FORMATS.map((f) => (
+              {formats.map((f) => (
                 <button
                   key={f.id}
                   className="w-full text-left px-3 py-2 hover:bg-bg-elevated flex flex-col gap-0.5"

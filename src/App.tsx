@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useStore } from 'zustand';
 import { Header } from './components/Header';
 import { ParameterPanel } from './components/ParameterPanel';
@@ -12,6 +13,7 @@ import type { Bbox, BuildStats, ExportFormat, MeshData } from './lib/geometry/ty
 import { downloadBlob } from './lib/geometry/stl';
 
 export default function App() {
+  const { t } = useTranslation();
   const design = useDesignStore((s) => s.design);
   const duoSidebar = useViewportStore((s) => s.duoView);
   const fit = useViewportStore((s) => s.fit);
@@ -120,9 +122,9 @@ export default function App() {
           <InfoOverlay bbox={bbox} stats={stats} />
           {stats && stats.droppedHoles !== undefined && stats.droppedHoles > 0 && (
             <div className="absolute top-3 left-1/2 -translate-x-1/2 panel rounded px-3 py-2 text-xs">
-              <span className="warn-badge mr-2">too many bits</span>
+              <span className="warn-badge mr-2">{t('warning.tooManyBits')}</span>
               <span className="text-text-muted">
-                {stats.placedHoles} placed · {stats.droppedHoles} dropped — increase bin size or reduce spacing.
+                {t('warning.tooManyBitsDetail', { placed: stats.placedHoles, dropped: stats.droppedHoles })}
               </span>
             </div>
           )}
