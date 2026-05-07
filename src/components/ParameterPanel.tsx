@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { Archive, Box, ChevronDown, ChevronRight, Layers, LayoutGrid, Plus, Wrench, X } from 'lucide-react';
 import { useDesignStore } from '@/store/designStore';
 import {
@@ -113,13 +113,56 @@ function NumberField({
   disabled?: boolean;
   format?: (v: number) => string;
 }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
   const display = format ? format(value) : `${value}${suffix ? ` ${suffix}` : ''}`;
+
+  const commitDraft = () => {
+    const parsed = parseFloat(draft);
+    if (!isNaN(parsed)) {
+      onChange(Math.min(max, Math.max(min, parsed)));
+    }
+    setEditing(false);
+  };
+
   return (
-    <label className="flex flex-col gap-1">
-      <span className="label flex justify-between normal-case">
+    <div className="flex flex-col gap-1">
+      <div className="label flex justify-between normal-case items-center">
         <span>{label}</span>
-        <span className="tabular text-text">{display}</span>
-      </span>
+        {editing ? (
+          <input
+            ref={inputRef}
+            type="number"
+            className="input w-24 text-right text-xs py-0.5 px-1.5 h-6"
+            value={draft}
+            min={min}
+            max={max}
+            step={step}
+            autoFocus
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={commitDraft}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') commitDraft();
+              if (e.key === 'Escape') setEditing(false);
+            }}
+          />
+        ) : (
+          <button
+            type="button"
+            disabled={disabled}
+            title="Click to type a value"
+            onClick={() => {
+              setDraft(String(value));
+              setEditing(true);
+            }}
+            className="tabular text-text hover:text-accent hover:underline decoration-dotted underline-offset-2 disabled:cursor-default disabled:no-underline disabled:hover:text-text"
+          >
+            {display}
+          </button>
+        )}
+      </div>
       <input
         type="range"
         min={min}
@@ -130,7 +173,7 @@ function NumberField({
         onChange={(e) => onChange(Number(e.target.value))}
         className="accent-accent"
       />
-    </label>
+    </div>
   );
 }
 
