@@ -34,8 +34,9 @@ type Props = {
 };
 
 const FORMATS: Array<{ id: ExportFormat; label: string; hint: string }> = [
-  { id: 'stl', label: 'STL', hint: 'Universal slicer-ready mesh.' },
-  { id: '3mf', label: '3MF', hint: 'Lossless, multi-material capable.' },
+  { id: 'stl',  label: 'STL',  hint: 'Universal slicer-ready mesh.' },
+  { id: '3mf',  label: '3MF',  hint: 'Lossless, multi-material capable.' },
+  { id: 'step', label: 'STEP', hint: 'CAD-ready — Fusion 360, FreeCAD, SolidWorks.' },
 ];
 
 function IconButton({

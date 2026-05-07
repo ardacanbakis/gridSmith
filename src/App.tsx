@@ -90,12 +90,15 @@ export default function App() {
     try {
       const worker = getWorker();
       const request = { model: design.model, spec: design.spec };
-      const buffer = format === '3mf'
-        ? await worker.exportThreeMf(request)
-        : await worker.exportStl(request);
-      const name = filenameFor(design.model, format);
-      const mime = format === '3mf' ? 'model/3mf' : 'model/stl';
-      downloadBlob(buffer, name, mime);
+      const buffer =
+        format === '3mf'  ? await worker.exportThreeMf(request) :
+        format === 'step' ? await worker.exportStep(request) :
+                            await worker.exportStl(request);
+      const mime =
+        format === '3mf'  ? 'model/3mf' :
+        format === 'step' ? 'application/octet-stream' :
+                            'model/stl';
+      downloadBlob(buffer, filenameFor(design.model, format), mime);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
