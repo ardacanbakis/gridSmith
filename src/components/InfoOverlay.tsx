@@ -90,5 +90,8 @@ function describeContent(model: ReturnType<typeof useDesignStore.getState>['desi
   if (model.kind === 'screwOrganizer') {
     return `Screws · ${model.cols}×${model.rows} compartments · ${model.tiltDegrees}° tilt`;
   }
+  if (model.kind === 'partsTray') {
+    return `Parts tray ${model.cellsX}×${model.cellsY}×${model.heightUnits}u · ${model.pocketCols}×${model.pocketRows} ${model.pocketShape} pockets Ø${model.pocketSize}mm`;
+  }
   return null;
 }

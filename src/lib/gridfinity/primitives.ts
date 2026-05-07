@@ -567,6 +567,105 @@ function buildBackTiltWedges(
   return acc;
 }
 
+export type PartsTrayOptions = {
+  cellsX: number;
+  cellsY: number;
+  heightUnits: number;
+  pocketShape: 'circle' | 'square';
+  pocketSize: number;
+  pocketDepth: number;
+  pocketCols: number;
+  pocketRows: number;
+  pocketSpacing: number;
+  edgeClearance: number;
+  stackingLip: boolean;
+  magnetHoles: boolean;
+  screwHoles: boolean;
+};
+
+export function buildPartsTray(
+  m: ManifoldToplevel,
+  spec: Spec,
+  opts: PartsTrayOptions,
+): Manifold {
+  const { gridUnit, clearance: binClearance, heightUnit, baseProfile, stackLip } = spec;
+  const outerW = opts.cellsX * gridUnit - binClearance;
+  const outerD = opts.cellsY * gridUnit - binClearance;
+  const totalH = opts.heightUnits * heightUnit;
+  const baseH = baseProfile.totalHeight;
+
+  const baseTiled = tileGrid(binBaseUnit(m, spec), opts.cellsX, opts.cellsY, gridUnit);
+  const bodyHeight = totalH - baseH;
+  const body = m.Manifold.cube([outerW, outerD, bodyHeight], true)
+    .translate([0, 0, baseH + bodyHeight / 2]);
+
+  let result = baseTiled.add(body);
+
+  // Pocket centres, evenly distributed across usable footprint
+  const usableW = outerW - 2 * opts.edgeClearance;
+  const usableD = outerD - 2 * opts.edgeClearance;
+  const cols = opts.pocketCols;
+  const rows = opts.pocketRows;
+  const stepX = cols > 1 ? (usableW - opts.pocketSize) / (cols - 1) : 0;
+  const stepY = rows > 1 ? (usableD - opts.pocketSize) / (rows - 1) : 0;
+  const startX = cols > 1 ? -(usableW - opts.pocketSize) / 2 : 0;
+  const startY = rows > 1 ? -(usableD - opts.pocketSize) / 2 : 0;
+
+  // Only punch pockets if they physically fit
+  const halfSize = opts.pocketSize / 2;
+  if (
+    opts.pocketSize > 0.5 &&
+    opts.pocketDepth > 0.2 &&
+    halfSize <= usableW / 2 + 0.001 &&
+    halfSize <= usableD / 2 + 0.001
+  ) {
+    const pocketDepth = Math.min(opts.pocketDepth, totalH - 0.8);
+    let pockets: Manifold | null = null;
+
+    for (let j = 0; j < rows; j++) {
+      for (let i = 0; i < cols; i++) {
+        const cx = startX + i * stepX;
+        const cy = startY + j * stepY;
+        let pocket: Manifold;
+        if (opts.pocketShape === 'circle') {
+          pocket = m.Manifold.cylinder(pocketDepth + 0.1, halfSize, -1, 48, true)
+            .translate([cx, cy, totalH - pocketDepth / 2 + 0.05]);
+        } else {
+          pocket = m.Manifold.cube([opts.pocketSize, opts.pocketSize, pocketDepth + 0.1], true)
+            .translate([cx, cy, totalH - pocketDepth / 2 + 0.05]);
+        }
+        pockets = pockets ? pockets.add(pocket) : pocket;
+      }
+    }
+    if (pockets) result = result.subtract(pockets);
+  }
+
+  if (opts.stackingLip) {
+    const lipOuter = m.Manifold.cube([outerW, outerD, stackLip.height], true)
+      .translate([0, 0, totalH + stackLip.height / 2]);
+    const lipInner = m.Manifold.cube(
+      [outerW - 2.4, outerD - 2.4, stackLip.height + 0.1],
+      true,
+    ).translate([0, 0, totalH + stackLip.height / 2]);
+    result = result.add(lipOuter.subtract(lipInner));
+  }
+
+  if (opts.magnetHoles || opts.screwHoles) {
+    const holes = magnetAndScrewHoles(
+      m,
+      spec,
+      opts.cellsX,
+      opts.cellsY,
+      opts.magnetHoles,
+      opts.screwHoles,
+      baseH,
+    );
+    if (holes) result = result.subtract(holes);
+  }
+
+  return result;
+}
+
 export type DrillHole = {
   /** Hole centre X, in bin-local coordinates (bin is centred on origin). */
   x: number;

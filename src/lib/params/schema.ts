@@ -100,11 +100,30 @@ export const ScrewOrganizerParamsSchema = z.object({
 });
 export type ScrewOrganizerParams = z.infer<typeof ScrewOrganizerParamsSchema>;
 
+export const PartsTrayParamsSchema = z.object({
+  kind: z.literal('partsTray'),
+  cellsX: z.number().int().min(1).max(20).default(2),
+  cellsY: z.number().int().min(1).max(20).default(2),
+  heightUnits: z.number().int().min(1).max(30).default(2),
+  pocketShape: z.enum(['circle', 'square']).default('circle'),
+  pocketSize: z.number().min(3).max(60).default(22),
+  pocketDepth: z.number().min(1).max(50).default(10),
+  pocketCols: z.number().int().min(1).max(20).default(3),
+  pocketRows: z.number().int().min(1).max(20).default(3),
+  pocketSpacing: z.number().min(0.5).max(10).default(2),
+  edgeClearance: z.number().min(1).max(15).default(3),
+  stackingLip: z.boolean().default(false),
+  magnetHoles: z.boolean().default(false),
+  screwHoles: z.boolean().default(false),
+});
+export type PartsTrayParams = z.infer<typeof PartsTrayParamsSchema>;
+
 export const ModelParamsSchema = z.discriminatedUnion('kind', [
   BaseplateParamsSchema,
   BinParamsSchema,
   DrillBitHolderParamsSchema,
   ScrewOrganizerParamsSchema,
+  PartsTrayParamsSchema,
 ]);
 export type ModelParams = z.infer<typeof ModelParamsSchema>;
 

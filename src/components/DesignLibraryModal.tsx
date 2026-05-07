@@ -25,7 +25,8 @@ function describe(saved: SavedDesign): string {
   if (m.kind === 'bin') return `Bin ${m.cellsX}×${m.cellsY}×${m.heightUnits}u`;
   if (m.kind === 'drillBitHolder')
     return `Drill bits ${m.cellsX}×${m.cellsY}×${m.heightUnits}u · ${m.bitSet}`;
-  return `Screws ${m.cellsX}×${m.cellsY} · ${m.cols}×${m.rows} compartments`;
+  if (m.kind === 'screwOrganizer') return `Screws ${m.cellsX}×${m.cellsY} · ${m.cols}×${m.rows} compartments`;
+  return `Parts tray ${m.cellsX}×${m.cellsY}×${m.heightUnits}u · ${m.pocketCols}×${m.pocketRows} pockets`;
 }
 
 export function DesignLibraryModal({ open, onClose }: Props) {

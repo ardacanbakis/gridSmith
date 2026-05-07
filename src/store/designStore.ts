@@ -9,6 +9,7 @@ import {
   BinParamsSchema,
   DrillBitHolderParamsSchema,
   ScrewOrganizerParamsSchema,
+  PartsTrayParamsSchema,
 } from '@/lib/params/schema';
 import { writeDesignToUrl, readDesignFromUrl } from '@/lib/params/url';
 
@@ -41,6 +42,7 @@ export const useDesignStore = create<DesignState>()(
         if (kind === 'baseplate') model = BaseplateParamsSchema.parse({ kind: 'baseplate' });
         else if (kind === 'drillBitHolder') model = DrillBitHolderParamsSchema.parse({ kind: 'drillBitHolder' });
         else if (kind === 'screwOrganizer') model = ScrewOrganizerParamsSchema.parse({ kind: 'screwOrganizer' });
+        else if (kind === 'partsTray') model = PartsTrayParamsSchema.parse({ kind: 'partsTray' });
         else model = BinParamsSchema.parse({ kind: 'bin' });
         const next = { ...get().design, model };
         set({ design: next });

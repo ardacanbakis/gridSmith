@@ -1,11 +1,12 @@
 import { useState, type ReactNode } from 'react';
-import { Archive, Box, ChevronDown, ChevronRight, LayoutGrid, Plus, Wrench, X } from 'lucide-react';
+import { Archive, Box, ChevronDown, ChevronRight, Layers, LayoutGrid, Plus, Wrench, X } from 'lucide-react';
 import { useDesignStore } from '@/store/designStore';
 import {
   BaseplateParamsSchema,
   BinParamsSchema,
   DrillBitHolderParamsSchema,
   ScrewOrganizerParamsSchema,
+  PartsTrayParamsSchema,
   type CompartmentLabelStyle,
   type LabelStyle,
   type BitSetId,
@@ -25,6 +26,7 @@ const MODEL_OPTIONS: Array<{ kind: ModelKind; label: string; icon: ReactNode }> 
   { kind: 'baseplate', label: 'Plate', icon: <LayoutGrid size={16} /> },
   { kind: 'drillBitHolder', label: 'Organizers', icon: <Archive size={16} /> },
   { kind: 'screwOrganizer', label: 'Screws', icon: <Wrench size={16} /> },
+  { kind: 'partsTray', label: 'Tray', icon: <Layers size={16} /> },
 ];
 
 function ModelTypePicker({
@@ -35,7 +37,7 @@ function ModelTypePicker({
   onChange: (k: ModelKind) => void;
 }) {
   return (
-    <div className="grid grid-cols-4 gap-1 p-1 bg-bg-elevated rounded-md border border-border">
+    <div className="grid grid-cols-5 gap-1 p-1 bg-bg-elevated rounded-md border border-border">
       {MODEL_OPTIONS.map((opt) => (
         <button
           key={opt.kind}
@@ -796,6 +798,123 @@ export function ParameterPanel({ mode = 'all', side = 'left' }: Props) {
                   onChange={(v) =>
                     setModel(DrillBitHolderParamsSchema.parse({ ...model, screwHoles: v }))
                   }
+                />
+              </Section>
+            )}
+          </>
+        ) : model.kind === 'partsTray' ? (
+          <>
+            {showCore && (
+              <Section title="Size">
+                <NumberField
+                  label="Cells X"
+                  value={model.cellsX}
+                  min={1}
+                  max={10}
+                  onChange={(v) => setModel(PartsTrayParamsSchema.parse({ ...model, cellsX: v }))}
+                />
+                <NumberField
+                  label="Cells Y"
+                  value={model.cellsY}
+                  min={1}
+                  max={10}
+                  onChange={(v) => setModel(PartsTrayParamsSchema.parse({ ...model, cellsY: v }))}
+                />
+                <NumberField
+                  label="Height (units)"
+                  value={model.heightUnits}
+                  min={1}
+                  max={10}
+                  onChange={(v) => setModel(PartsTrayParamsSchema.parse({ ...model, heightUnits: v }))}
+                  format={(v) => `${v}u = ${fmtLength(v * spec.heightUnit, units, 1)}`}
+                />
+              </Section>
+            )}
+
+            {showCore && (
+              <Section title="Pockets">
+                <SegmentedControl
+                  value={model.pocketShape}
+                  onChange={(v) => setModel(PartsTrayParamsSchema.parse({ ...model, pocketShape: v as 'circle' | 'square' }))}
+                  options={[
+                    { value: 'circle', label: 'Circle' },
+                    { value: 'square', label: 'Square' },
+                  ]}
+                />
+                <NumberField
+                  label="Pocket size"
+                  value={model.pocketSize}
+                  min={3}
+                  max={60}
+                  step={0.5}
+                  onChange={(v) => setModel(PartsTrayParamsSchema.parse({ ...model, pocketSize: v }))}
+                  format={len(1)}
+                />
+                <NumberField
+                  label="Pocket depth"
+                  value={model.pocketDepth}
+                  min={1}
+                  max={50}
+                  step={0.5}
+                  onChange={(v) => setModel(PartsTrayParamsSchema.parse({ ...model, pocketDepth: v }))}
+                  format={len(1)}
+                />
+                <NumberField
+                  label="Columns"
+                  value={model.pocketCols}
+                  min={1}
+                  max={20}
+                  onChange={(v) => setModel(PartsTrayParamsSchema.parse({ ...model, pocketCols: v }))}
+                />
+                <NumberField
+                  label="Rows"
+                  value={model.pocketRows}
+                  min={1}
+                  max={20}
+                  onChange={(v) => setModel(PartsTrayParamsSchema.parse({ ...model, pocketRows: v }))}
+                />
+              </Section>
+            )}
+
+            {showFinish && (
+              <Section title="Spacing" defaultOpen={false}>
+                <NumberField
+                  label="Spacing"
+                  value={model.pocketSpacing}
+                  min={0.5}
+                  max={10}
+                  step={0.1}
+                  onChange={(v) => setModel(PartsTrayParamsSchema.parse({ ...model, pocketSpacing: v }))}
+                  format={len(2)}
+                />
+                <NumberField
+                  label="Edge clearance"
+                  value={model.edgeClearance}
+                  min={1}
+                  max={15}
+                  step={0.5}
+                  onChange={(v) => setModel(PartsTrayParamsSchema.parse({ ...model, edgeClearance: v }))}
+                  format={len(1)}
+                />
+              </Section>
+            )}
+
+            {showFinish && (
+              <Section title="Finish" defaultOpen={false}>
+                <Toggle
+                  label="Stacking lip"
+                  value={model.stackingLip}
+                  onChange={(v) => setModel(PartsTrayParamsSchema.parse({ ...model, stackingLip: v }))}
+                />
+                <Toggle
+                  label="Magnet holes"
+                  value={model.magnetHoles}
+                  onChange={(v) => setModel(PartsTrayParamsSchema.parse({ ...model, magnetHoles: v }))}
+                />
+                <Toggle
+                  label="Screw holes"
+                  value={model.screwHoles}
+                  onChange={(v) => setModel(PartsTrayParamsSchema.parse({ ...model, screwHoles: v }))}
                 />
               </Section>
             )}

@@ -5,6 +5,7 @@ import {
   buildBin,
   buildDrillBitHolder,
   buildScrewOrganizer,
+  buildPartsTray,
   type LabelTextData,
 } from '@/lib/gridfinity/primitives';
 import { getLabelFont } from '@/lib/labels/font';
@@ -91,6 +92,10 @@ async function buildManifold(request: GeometryRequest): Promise<{
         compartmentLabelPolygons,
       }),
     };
+  }
+
+  if (request.model.kind === 'partsTray') {
+    return { m, result: buildPartsTray(m, spec, request.model) };
   }
 
   const bits = bitsForSet(request.model.bitSet, request.model.customBits);
