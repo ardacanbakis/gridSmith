@@ -474,6 +474,12 @@ export function ParameterPanel({ mode = 'all', side = 'left' }: Props) {
   const specIsStandard = isStandardSpec(spec.gridUnit, spec.heightUnit);
   const len = (digits = 1) => (v: number) => fmtLength(v, units, digits);
 
+  // Track which non-standard spec the user has dismissed the warning for.
+  const [dismissedSpec, setDismissedSpec] = useState<{ gridUnit: number; heightUnit: number } | null>(null);
+  const warnVisible =
+    !specIsStandard &&
+    !(dismissedSpec?.gridUnit === spec.gridUnit && dismissedSpec?.heightUnit === spec.heightUnit);
+
   const showCore = mode === 'all' || mode === 'core';
   const showFinish = mode === 'all' || mode === 'finish';
 
@@ -503,20 +509,32 @@ export function ParameterPanel({ mode = 'all', side = 'left' }: Props) {
               onChange={(v) => setSpec({ gridUnit: v })}
               format={len(1)}
             />
-            <NumberField
-              label="Height unit"
-              value={spec.heightUnit}
-              min={2}
-              max={30}
-              step={0.5}
-              onChange={(v) => setSpec({ heightUnit: v })}
-              format={len(1)}
-            />
-            {!specIsStandard && (
-              <p className="text-xs text-warn leading-snug">
-                Deviates from Gridfinity spec ({STANDARD.gridUnit} mm × {STANDARD.heightUnit} mm).
-                Parts won't mate with stock bins.
-              </p>
+            {model.kind !== 'baseplate' && (
+              <NumberField
+                label="Height unit"
+                value={spec.heightUnit}
+                min={2}
+                max={30}
+                step={0.5}
+                onChange={(v) => setSpec({ heightUnit: v })}
+                format={len(1)}
+              />
+            )}
+            {warnVisible && (
+              <div className="flex items-start gap-1.5">
+                <p className="text-xs text-warn leading-snug flex-1">
+                  Deviates from Gridfinity spec ({STANDARD.gridUnit} mm × {STANDARD.heightUnit} mm).
+                  Parts won't mate with stock bins.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setDismissedSpec({ gridUnit: spec.gridUnit, heightUnit: spec.heightUnit })}
+                  className="text-warn hover:text-text-muted shrink-0 mt-0.5"
+                  title="Dismiss"
+                >
+                  <X size={12} />
+                </button>
+              </div>
             )}
           </Section>
         )}
