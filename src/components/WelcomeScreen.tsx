@@ -285,35 +285,18 @@ function NeonGrid({ dark }: { dark: boolean }) {
 // ── logo ─────────────────────────────────────────────────────────────────────
 
 function GridsmithLogo({ dark }: { dark: boolean }) {
-  const accent = dark ? '#f59e0b' : '#16a34a';
+  const accent = dark ? '#22c55e' : '#16a34a';
   return (
     <div
-      className="mx-auto"
+      className="mx-auto flex items-center gap-3"
       style={{ animation: 'gs-logo-in 1.4s cubic-bezier(0.22,1,0.36,1) both' }}
     >
-      <svg viewBox="0 0 96 96" width="96" height="96" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <rect width="96" height="96" rx="18" fill={dark ? '#1a1f2c' : '#f0fdf4'} />
-        {/* 2×2 Gridfinity cell grid */}
-        {[[8,8],[52,8],[8,52],[52,52]].map(([x, y], i) => (
-          <g key={i}>
-            <rect x={x} y={y} width="36" height="36" rx="5" fill={dark ? '#252c3a' : '#dcfce7'} />
-            {/* base profile chamfer suggestion */}
-            <rect x={x+3} y={y+3} width="30" height="30" rx="3.5" fill="none" stroke={accent} strokeWidth="2" opacity="0.7" />
-          </g>
-        ))}
-        {/* bold "G" */}
-        <text
-          x="48" y="62"
-          textAnchor="middle"
-          fontFamily="system-ui, sans-serif"
-          fontWeight="800"
-          fontSize="44"
-          fill={accent}
-          letterSpacing="-2"
-        >
-          G
-        </text>
-      </svg>
+      <div
+        className="w-14 h-14 rounded-xl grid place-items-center shrink-0"
+        style={{ background: accent }}
+      >
+        <span style={{ color: '#fff', fontWeight: 800, fontSize: '2rem', lineHeight: 1 }}>G</span>
+      </div>
     </div>
   );
 }

@@ -8,7 +8,6 @@ import {
   FolderOpen,
   Grid2x2,
   Home,
-  Info,
   Maximize,
   Maximize2,
   Minimize,
@@ -165,12 +164,16 @@ export function Header({ onExport, exporting, onOpenLibrary, onOpenWelcome }: Pr
 
   return (
     <header className="flex items-center gap-2 px-3 h-12 border-b border-border bg-bg-panel shrink-0">
-      <div className="flex items-center gap-2 shrink-0">
+      <button
+        onClick={onOpenWelcome}
+        title="About Gridsmith"
+        className="flex items-center gap-2 shrink-0 rounded hover:opacity-80 transition-opacity"
+      >
         <div className="w-6 h-6 rounded bg-accent grid place-items-center">
           <span className="text-accent-fg font-bold text-xs">G</span>
         </div>
         <h1 className="text-sm font-semibold tracking-wide hidden md:block">Gridsmith</h1>
-      </div>
+      </button>
 
       <div className="flex-1" />
 
@@ -306,10 +309,6 @@ export function Header({ onExport, exporting, onOpenLibrary, onOpenWelcome }: Pr
 
         <IconButton title={t('header.savedDesigns')} onClick={onOpenLibrary}>
           <FolderOpen size={16} />
-        </IconButton>
-
-        <IconButton title="About Gridsmith" onClick={onOpenWelcome}>
-          <Info size={16} />
         </IconButton>
 
         <IconButton title={t('header.copyShareLink')} onClick={onShare}>

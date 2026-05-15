@@ -1,174 +1,116 @@
 # Gridsmith
 
-> Custom bins, built your way.
+**Parametric Gridfinity studio — design bins, baseplates, and organizers in your browser and export print-ready files in seconds.**
 
-Gridsmith is a parametric, browser-based studio for designing
-[Gridfinity](https://gridfinity.xyz) bins, baseplates, and use-case-specific
-organisers — drill-bit holders, screw organisers, router-bit racks — with
-first-class label support and STL / 3MF export.
+**[Live Demo →](https://ardacanbakis.github.io/gridSmith/)**
 
-## What's in the box today
+---
 
-**Models**
-- **Baseplate** — minimal or rigid, optional magnet pockets, optional screw
-  holes.
-- **Bin** — X/Y/Z cells, configurable wall thickness, hollow/solid, stacking
-  lip, optional internal compartment grid (`divX × divY`), optional scoop
-  ramp on the front row, optional magnet/screw holes.
-- **Drill-bit holder** — a solid bin with parameterised cylindrical pockets
-  drilled from the top. Five built-in bit-set presets (metric whole-mm,
-  metric 0.5 mm, fractional 1/16″–1/2″, US letter A–Z, US number #1–#30) plus
-  five router-shank presets (1/4″, 1/8″, 6/8/12 mm) and a custom comma-
-  separated list. Single-pass shelf packing fits as many bits as the bin
-  allows; the UI warns when bits drop.
-- **Screw organiser** — a divided bin where each compartment optionally gets a
-  back-tilt wedge so loose screws roll forward by gravity.
+## What is Gridsmith?
 
-**Labels (all four)**
-- **Paper pocket** — recessed slot on the front wall sized for a 12 mm label
-  tape or a hand-written strip.
-- **Clip tab** — slot at the top of the front lip for community-standard swap
-  labels.
-- **Embossed text** — Inter Bold rendered as real geometry, raised from the
-  front face.
-- **Engraved text** — same, cut into the front face.
+Gridsmith is a fully browser-based 3D design tool for the [Gridfinity](https://gridfinity.xyz) modular storage system. Pick a model type, dial in your parameters, watch the 3D preview update live, and download a print-ready file — no software to install, no account required.
 
-**Customisation that goes beyond stock Gridfinity**
-- **Editable grid + height units** — global, defaults to spec (42 mm × 7 mm)
-  but you can change either; everything (base profile, magnet inset, lip,
-  clearance) scales proportionally. A "non-standard" badge warns when the
-  output won't mate with stock parts.
-- **Light + dark themes** — light is white/blue (clean studio), dark is
-  charcoal/amber (workshop). Theme persists.
-- **mm / inch toggle** — UI-side only; geometry is always mm internally.
+Every calculation and geometry operation runs inside your browser. Nothing is ever uploaded anywhere.
 
-**Export**
-- **STL** — universal, slicer-ready.
-- **3MF** — lossless, multi-material capable; what you want for multi-colour
-  embossed labels.
+---
 
-**Sharing**
-- The whole design (all parameters, including the spec) is encoded in the URL
-  via lz-string, so a copy-pasted link is the design.
+## Model Types
 
-## Stack
+| Type | What you get |
+|---|---|
+| **Bin** | Standard Gridfinity bin — set width, depth, and height in grid cells and height units. Add internal dividers, a scoop ramp, labels, and mounting holes. |
+| **Baseplate** | Flat plate with the Gridfinity base profile recessed in — minimal (thin) or rigid (+1.2 mm slab). |
+| **Organizers** | Solid block with cylindrical holes drilled from the top. Built-in presets for metric drill bits, router shanks (metric and imperial), and batteries. Also accepts a custom diameter list. |
+| **Screw Organizer** | Divided bin with optional back-tilt wedge per compartment — screws roll to the front by gravity. Per-column embossed or engraved labels. |
+| **Parts Tray** | Solid block with a configurable grid of circular or square pockets — great for tokens, coins, small electronics, or foam-insert-style storage. |
 
-- React 18 + Vite + TypeScript
-- react-three-fiber + drei for the viewport
-- **Manifold** (WASM) for robust CSG, running in a Web Worker via Comlink
-- **opentype.js** for font glyph → polygon conversion, also in the worker
-- **@jscadui/3mf-export + fflate** for the 3MF writer
-- Zustand state, Zod schemas, Tailwind CSS, Inter + JetBrains Mono via
-  @fontsource
-- Firebase ready but **off by default**
+---
 
-Geometry runs entirely client-side in a worker so the UI never blocks during
-booleans.
+## Features
 
-## Quick start
+### Live 3D Preview
+Every parameter change rebuilds the mesh in real time using Manifold, a high-performance CSG kernel compiled to WebAssembly. The preview supports orbit, pan, and zoom, includes a build-plate overlay for scale, and shows exact dimensions and a PLA weight + print-time estimate in the corner.
 
-```bash
-npm install
-npm run dev
-```
+### Three Export Formats
+| Format | Best for |
+|---|---|
+| **STL** | Universal — drop it straight into any slicer. |
+| **3MF** | Lossless, multi-material capable — better metadata than STL. |
+| **STEP** | CAD-ready — import into Fusion 360, FreeCAD, or SolidWorks for further modification. |
 
-Open http://localhost:5173.
+### Labels (on Bins and Screw Organizers)
+- **Paper pocket** — recessed slot on the front wall for a label-tape strip.
+- **Clip tab** — slot at the stacking-lip level for community-standard swap labels.
+- **Embossed text** — text raised from the front face as real geometry.
+- **Engraved text** — text cut into the front face.
 
-## Scripts
+### Gridfinity Spec Compliance
+The default grid is exactly 42 mm × 7 mm — compatible with any stock Gridfinity bin and baseplate. The grid unit and height unit are both adjustable; all dimensions (base profile, clearance, magnet inset, stacking lip) scale proportionally. A badge appears in the sidebar if you deviate from spec.
 
-| Command            | What it does                          |
-| ------------------ | ------------------------------------- |
-| `npm run dev`      | Vite dev server                       |
-| `npm run build`    | Type-check + production build         |
-| `npm run preview`  | Serve production build locally        |
-| `npm run typecheck`| `tsc --noEmit`                        |
-| `npm test`         | Run Vitest                            |
+### Organizer Templates
+The Organizers panel includes a browsable template library grouped by category. Imperial presets (fractional-inch, letter, number drill sets; ¼″ / ⅛″ router shanks) are automatically hidden when metric units are selected.
 
-## Project layout
+### Share by URL
+The entire design — every parameter — is encoded into the URL. Copying the address bar gives you a shareable link that reconstructs the exact design.
 
-```
-src/
-├── components/             React components (Header, Viewport, ParameterPanel)
-├── lib/
-│   ├── firebase/           Firebase drop-in config (off by default)
-│   ├── geometry/           Manifold worker + STL/3MF exporters
-│   ├── gridfinity/         Spec, primitives, bit-set presets
-│   ├── labels/             Font loader + text-to-polygons + emboss helper
-│   ├── params/             Zod schemas + URL share encoding
-│   └── units.ts            mm/in display helpers
-├── store/                  Zustand stores (design, theme)
-└── types/                  Ambient module declarations
-```
+### Works Offline
+Gridsmith is a Progressive Web App. After your first visit it works without an internet connection and can be installed to your home screen or desktop.
 
-## Deploying
+### Undo / Redo
+Full 50-step undo/redo history with `Ctrl+Z` / `Ctrl+Shift+Z` keyboard shortcuts. Rapid slider drags are coalesced into a single undo step.
 
-Manifold's WASM kernel is fastest with `SharedArrayBuffer`, which requires
-the page to be **cross-origin isolated** — meaning the server must send:
+### Dual Sidebar Mode
+Toggle a second sidebar to show finishing options (labels, mounting holes) alongside the core size controls — useful on wide screens.
 
-- `Cross-Origin-Opener-Policy: same-origin`
-- `Cross-Origin-Embedder-Policy: require-corp`
+---
 
-`coi-serviceworker` is bundled and registered automatically. On hosts that
-don't let you set headers (GitHub Pages), the shim's service worker
-intercepts requests and adds them. On hosts that do (Firebase, Cloudflare),
-the shim self-detects and no-ops.
+## How It Was Built
 
-### GitHub Pages
+### Geometry Engine
+All 3D geometry is generated by **[Manifold](https://github.com/elalish/manifold)**, a robust CSG (constructive solid geometry) library compiled to WebAssembly. Manifold runs inside a **Web Worker** via [Comlink](https://github.com/GoogleChromeLabs/comlink), so the UI never blocks during boolean operations — even complex organizers with dozens of holes rebuild in under a second.
 
-The repo ships with `.github/workflows/deploy-pages.yml` that builds and
-deploys on every push to `main` (or the active feature branch).
+The Gridfinity base profile (the four-layer chamfered foot every bin sits on) is built by lofting rounded rectangles at spec-exact Z heights, scaled linearly from the user's grid unit. All primitives are parametric — no hardcoded vertex data.
 
-One-time setup in your fork:
+### STEP Export
+STEP files are written as ISO 10303-21 AP203 `CONFIG_CONTROL_DESIGN` using a pure-JS writer (no OpenCASCADE). Each triangle face becomes a `POLY_LOOP` → `FACE_OUTER_BOUND` → `FACE_SURFACE` entity chain; a `CLOSED_SHELL` forward-references all face IDs. Normals are computed via cross-product with Gram-Schmidt orthogonalization for the reference direction.
 
-1. Repo → **Settings → Pages → Build and deployment → Source: GitHub Actions**.
-2. Push. The Action builds with `VITE_BASE_PATH=/<repo-name>/` and deploys.
-3. App will be live at `https://<your-username>.github.io/<repo-name>/`.
+### Text Labels
+Font glyphs are loaded via **[opentype.js](https://opentype.js.org/)** and converted to 2D polygons using the cubic-Bézier tessellation built into opentype. The polygons are extruded by Manifold and either unioned onto (emboss) or subtracted from (engrave) the bin body — entirely in the worker.
 
-### Firebase Hosting (when you're ready to switch)
+### Frontend Stack
+| Layer | Technology |
+|---|---|
+| UI framework | React 18 + TypeScript + Vite |
+| 3D viewport | `@react-three/fiber` + `@react-three/drei` + Three.js |
+| State | Zustand with `zundo` temporal plugin (undo/redo) |
+| Schemas | Zod (runtime validation + TypeScript inference) |
+| Styling | Tailwind CSS + CSS custom properties for theming |
+| Fonts | Inter + JetBrains Mono via `@fontsource` |
+| i18n | react-i18next (English baseline, ready for more languages) |
+| URL sharing | `lz-string` compression into the query string |
 
-`firebase.json` is committed and configured: it points to `dist/`, sends the
-COOP/COEP headers natively, sets aggressive caching for fingerprinted
-assets, and rewrites SPA-style.
+### Cross-Origin Isolation
+Manifold's WASM kernel uses `SharedArrayBuffer`, which requires the page to be cross-origin isolated (`COOP: same-origin` + `COEP: require-corp`). On GitHub Pages (where you can't set headers), `coi-serviceworker` intercepts every fetch and injects the headers via a service worker. On hosts that support custom headers it self-detects and no-ops.
 
-```bash
-npm install -g firebase-tools
-firebase login
-cp .firebaserc.example .firebaserc   # then set your project ID
-npm run build                        # base path defaults to "/"
-firebase deploy
-```
+### CI / CD
+A GitHub Actions workflow builds the app with `VITE_BASE_PATH=/<repo-name>/` (derived automatically from the repository name) and deploys to GitHub Pages on every push. The base path is dynamic so the workflow survives repository renames.
 
-You can keep both targets active during a migration: Pages builds with
-`VITE_BASE_PATH=/<repo>/`, Firebase builds with no env var (defaults to
-`/`).
+---
 
-## Enabling Firebase auth + saved designs (optional)
+## Live Demo
 
-Gridsmith works fully without Firebase. Designs are encoded in the URL, so
-"share" = copy the link.
+**[ardacanbakis.github.io/gridSmith](https://ardacanbakis.github.io/gridSmith/)**
 
-To unlock Google sign-in and cloud-saved designs:
+No account. No install. Open and design.
 
-1. Create a project at https://console.firebase.google.com.
-2. Add a Web App and copy the config object.
-3. `cp .env.example .env.local` and fill in the `VITE_FIREBASE_*` values.
-4. Set `VITE_FIREBASE_ENABLED=true`.
-
-## Roadmap
-
-- ✅ **Phase 0** — scaffolding, Manifold worker, Gridfinity primitives, STL.
-- ✅ **Phase 1** — feature parity with gridfinitygenerator.com, scoop ramp,
-  internal dividers, paper-pocket and clip-tab labels, light/dark themes,
-  editable grid spec.
-- ✅ **Phase 2** — drill-bit holder + router-shank presets, screw organiser
-  with tilt, embossed and engraved text labels, 3MF export, web fonts,
-  imperial display.
-- ⏳ **Phase 3** — STEP export (lazy-loaded opencascade.js), spec-perfect
-  base-profile snapshot tests, freeform Custom Designer.
-- ⏳ **Phase 4** — Google auth, saved designs, public gallery, remix.
-- ⏳ **Phase 5** — PWA / offline, i18n, print-time + filament estimate.
+---
 
 ## License
 
-[MIT](./LICENSE). The Gridfinity system itself is by Zack Freedman, also
-MIT-licensed.
+[MIT](./LICENSE) — Gridsmith is open source.
+
+The Gridfinity system itself was created by [Zack Freedman](https://www.printables.com/model/274917-gridfinity-specification) and is also MIT-licensed.
+
+---
+
+*Created by [Arda Canbakis](https://ardacanbakis.com)*
