@@ -8,6 +8,7 @@ import {
   FolderOpen,
   Grid2x2,
   Home,
+  Info,
   Maximize,
   Maximize2,
   Minimize,
@@ -32,6 +33,7 @@ type Props = {
   onExport: (format: ExportFormat) => void;
   exporting: boolean;
   onOpenLibrary: () => void;
+  onOpenWelcome: () => void;
 };
 
 const FORMAT_IDS: ExportFormat[] = ['stl', '3mf', 'step'];
@@ -76,7 +78,7 @@ function Divider() {
   return <div className="h-5 w-px bg-border mx-1.5" />;
 }
 
-export function Header({ onExport, exporting, onOpenLibrary }: Props) {
+export function Header({ onExport, exporting, onOpenLibrary, onOpenWelcome }: Props) {
   const { t } = useTranslation();
   const formats = FORMAT_IDS.map((id) => ({
     id,
@@ -304,6 +306,10 @@ export function Header({ onExport, exporting, onOpenLibrary }: Props) {
 
         <IconButton title={t('header.savedDesigns')} onClick={onOpenLibrary}>
           <FolderOpen size={16} />
+        </IconButton>
+
+        <IconButton title="About Gridsmith" onClick={onOpenWelcome}>
+          <Info size={16} />
         </IconButton>
 
         <IconButton title={t('header.copyShareLink')} onClick={onShare}>

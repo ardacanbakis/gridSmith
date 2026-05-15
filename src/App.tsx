@@ -6,6 +6,7 @@ import { ParameterPanel } from './components/ParameterPanel';
 import { Viewport } from './components/Viewport';
 import { InfoOverlay } from './components/InfoOverlay';
 import { DesignLibraryModal } from './components/DesignLibraryModal';
+import { WelcomeScreen, useWelcomeScreen } from './components/WelcomeScreen';
 import { useDesignStore } from './store/designStore';
 import { useViewportStore } from './store/viewportStore';
 import { getWorker } from './lib/geometry/workerClient';
@@ -14,6 +15,7 @@ import { downloadBlob } from './lib/geometry/stl';
 
 export default function App() {
   const { t } = useTranslation();
+  const { showWelcome, dismiss, show: showWelcomeScreen } = useWelcomeScreen();
   const design = useDesignStore((s) => s.design);
   const duoSidebar = useViewportStore((s) => s.duoView);
   const fit = useViewportStore((s) => s.fit);
@@ -109,11 +111,14 @@ export default function App() {
   };
 
   return (
+    <>
+    {showWelcome && <WelcomeScreen onDismiss={dismiss} />}
     <div className="h-full flex flex-col">
       <Header
         onExport={onExport}
         exporting={exporting}
         onOpenLibrary={() => setLibraryOpen(true)}
+        onOpenWelcome={showWelcomeScreen}
       />
       <div className="flex-1 flex min-h-0">
         <ParameterPanel mode={duoSidebar ? 'core' : 'all'} side="left" />
@@ -138,6 +143,7 @@ export default function App() {
       </div>
       <DesignLibraryModal open={libraryOpen} onClose={() => setLibraryOpen(false)} />
     </div>
+    </>
   );
 }
 
