@@ -282,25 +282,6 @@ function NeonGrid({ dark }: { dark: boolean }) {
   );
 }
 
-// ── logo ─────────────────────────────────────────────────────────────────────
-
-function GridsmithLogo({ dark }: { dark: boolean }) {
-  const accent = dark ? '#22c55e' : '#16a34a';
-  return (
-    <div
-      className="mx-auto flex items-center gap-3"
-      style={{ animation: 'gs-logo-in 1.4s cubic-bezier(0.22,1,0.36,1) both' }}
-    >
-      <div
-        className="w-14 h-14 rounded-xl grid place-items-center shrink-0"
-        style={{ background: accent }}
-      >
-        <span style={{ color: '#fff', fontWeight: 800, fontSize: '2rem', lineHeight: 1 }}>G</span>
-      </div>
-    </div>
-  );
-}
-
 // ── footer ────────────────────────────────────────────────────────────────────
 
 function Footer({ dark }: { dark: boolean }) {
@@ -422,8 +403,6 @@ export function WelcomeScreen({ onDismiss }: Props) {
         {/* ── step 0: hero ── */}
         {step === 0 && (
           <div className="text-center space-y-5">
-            <GridsmithLogo dark={dark} />
-
             <div style={{ animation: 'gs-fade-up 0.6s ease-out 1.2s both' }}>
               <h1 className={`text-4xl font-bold tracking-tight ${textColor}`}>Gridsmith</h1>
             </div>
