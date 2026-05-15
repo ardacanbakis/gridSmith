@@ -201,28 +201,37 @@ const KEYFRAMES = `
 }
 `;
 
-// ── Gridfinity-style animated background grid ─────────────────────────────────
-// Active cells form a "G" letter centred in a 16 × 13 grid.
+// ── Animated background grid — spells "THEO" across a 16 × 14 grid ──────────
+// Layout mirrors stlSmith exactly.
 
 const ACTIVE_CELLS: Array<[number, number]> = [
-  // top arc of G
-  [6,2],[7,2],[8,2],[9,2],[10,2],
-  // left side
-  [5,3],[5,4],[5,5],[5,6],[5,7],[5,8],[5,9],
-  // bottom arc
-  [6,10],[7,10],[8,10],[9,10],[10,10],
-  // right side (bottom half only — distinguishes G from C)
-  [11,7],[11,8],[11,9],
-  // horizontal arm of G
-  [8,7],[9,7],[10,7],[11,7],
+  // T — top-left
+  [1,1],[2,1],[3,1],[4,1],[5,1],
+  [3,2],[3,3],[3,4],[3,5],
+  // H — top-right
+  [10,1],[14,1],[10,2],[14,2],
+  [10,3],[11,3],[12,3],[13,3],[14,3],
+  [10,4],[14,4],[10,5],[14,5],
+  // E — bottom-left
+  [1,8],[2,8],[3,8],[4,8],[5,8],
+  [1,9],
+  [1,10],[2,10],[3,10],[4,10],
+  [1,11],
+  [1,12],[2,12],[3,12],[4,12],[5,12],
+  // O — bottom-right
+  [11,8],[12,8],[13,8],
+  [10,9],[14,9],
+  [10,10],[14,10],
+  [10,11],[14,11],
+  [11,12],[12,12],[13,12],
 ];
 
 function NeonGrid({ dark }: { dark: boolean }) {
-  const accent     = dark ? '#f59e0b' : '#16a34a';
-  const accentSoft = dark ? 'rgba(245,158,11,0.55)' : 'rgba(22,163,74,0.45)';
+  const accent     = dark ? '#22c55e' : '#16a34a';
+  const accentSoft = dark ? 'rgba(34,197,94,0.55)' : 'rgba(22,163,74,0.45)';
   const lineColor  = dark ? 'rgba(148,163,184,0.07)' : 'rgba(71,85,105,0.09)';
   const cols = 16;
-  const rows = 13;
+  const rows = 14;
 
   return (
     <div className="absolute inset-0 overflow-hidden pointer-events-none">
