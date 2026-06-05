@@ -93,5 +93,8 @@ function describeContent(model: ReturnType<typeof useDesignStore.getState>['desi
   if (model.kind === 'partsTray') {
     return `Parts tray ${model.cellsX}×${model.cellsY}×${model.heightUnits}u · ${model.pocketCols}×${model.pocketRows} ${model.pocketShape} pockets Ø${model.pocketSize}mm`;
   }
+  if (model.kind === 'lid') {
+    return `Lid ${model.cellsX}×${model.cellsY} · ${model.lidClearance}mm clearance`;
+  }
   return null;
 }

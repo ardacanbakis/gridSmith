@@ -666,6 +666,44 @@ export function buildPartsTray(
   return result;
 }
 
+export type LidOptions = {
+  cellsX: number;
+  cellsY: number;
+  wallThickness: number;
+  lidClearance: number;
+};
+
+/**
+ * Snap-on flat lid. Printed flat-face-down; the grip ring slides inside the
+ * target bin's opening. Grip ring outer dims = bin inner dims − 2×clearance.
+ */
+export function buildLid(m: ManifoldToplevel, spec: Spec, opts: LidOptions): Manifold {
+  const { gridUnit, clearance: binClearance, stackLip } = spec;
+  const outerW = opts.cellsX * gridUnit - binClearance;
+  const outerD = opts.cellsY * gridUnit - binClearance;
+  const plateThick = 1.2;
+
+  const plate = m.Manifold.cube([outerW, outerD, plateThick], true)
+    .translate([0, 0, plateThick / 2]);
+
+  const gripW = outerW - 2 * opts.wallThickness - 2 * opts.lidClearance;
+  const gripD = outerD - 2 * opts.wallThickness - 2 * opts.lidClearance;
+  const gripWallThick = opts.wallThickness;
+  const gripInnerW = gripW - 2 * gripWallThick;
+  const gripInnerD = gripD - 2 * gripWallThick;
+  const gripH = stackLip.height;
+
+  if (gripW > 0.1 && gripD > 0.1 && gripInnerW > 0.1 && gripInnerD > 0.1) {
+    const gripOuter = m.Manifold.cube([gripW, gripD, gripH], true);
+    const gripInner = m.Manifold.cube([gripInnerW, gripInnerD, gripH + 0.1], true);
+    const grip = gripOuter.subtract(gripInner)
+      .translate([0, 0, plateThick + gripH / 2]);
+    return plate.add(grip);
+  }
+
+  return plate;
+}
+
 export type DrillHole = {
   /** Hole centre X, in bin-local coordinates (bin is centred on origin). */
   x: number;

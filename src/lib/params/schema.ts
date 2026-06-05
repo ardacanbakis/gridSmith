@@ -118,12 +118,22 @@ export const PartsTrayParamsSchema = z.object({
 });
 export type PartsTrayParams = z.infer<typeof PartsTrayParamsSchema>;
 
+export const LidParamsSchema = z.object({
+  kind: z.literal('lid'),
+  cellsX: z.number().int().min(1).max(20).default(1),
+  cellsY: z.number().int().min(1).max(20).default(1),
+  wallThickness: z.number().min(0.8).max(4).default(1.2),
+  lidClearance: z.number().min(0).max(0.5).default(0.15),
+});
+export type LidParams = z.infer<typeof LidParamsSchema>;
+
 export const ModelParamsSchema = z.discriminatedUnion('kind', [
   BaseplateParamsSchema,
   BinParamsSchema,
   DrillBitHolderParamsSchema,
   ScrewOrganizerParamsSchema,
   PartsTrayParamsSchema,
+  LidParamsSchema,
 ]);
 export type ModelParams = z.infer<typeof ModelParamsSchema>;
 

@@ -2,13 +2,14 @@ import {
   BaseplateParamsSchema,
   BinParamsSchema,
   DrillBitHolderParamsSchema,
+  LidParamsSchema,
   ScrewOrganizerParamsSchema,
   PartsTrayParamsSchema,
   type ModelParams,
 } from '@/lib/params/schema';
 import { BIT_SETS } from '@/lib/gridfinity/bitSets';
 
-export type TemplateCategory = 'all' | 'quick-start' | 'bins' | 'organizers' | 'trays' | 'baseplates';
+export type TemplateCategory = 'all' | 'quick-start' | 'bins' | 'lids' | 'organizers' | 'trays' | 'baseplates';
 
 export type GalleryTemplate = {
   id: string;
@@ -34,6 +35,9 @@ function screws(o: Record<string, unknown> = {}): ModelParams {
 function tray(o: Record<string, unknown> = {}): ModelParams {
   return PartsTrayParamsSchema.parse({ kind: 'partsTray', ...o });
 }
+function lid(o: Record<string, unknown> = {}): ModelParams {
+  return LidParamsSchema.parse({ kind: 'lid', ...o });
+}
 
 const IMPERIAL_ONLY_SETS = new Set([
   'fractional-inch', 'letter', 'number', 'router-quarter', 'router-eighth',
@@ -56,6 +60,7 @@ export function templateSpec(model: ModelParams): string {
     return `${model.cellsX}×${model.cellsY} · custom`;
   }
   if (model.kind === 'screwOrganizer') return `${model.cellsX}×${model.cellsY} · ${model.cols}×${model.rows}`;
+  if (model.kind === 'lid') return `${model.cellsX}×${model.cellsY} · ${model.lidClearance}mm clearance`;
   return `${model.cellsX}×${model.cellsY} · ${model.pocketCols}×${model.pocketRows} pockets`;
 }
 
@@ -302,6 +307,48 @@ export const GALLERY_TEMPLATES: GalleryTemplate[] = [
     model: organizer({ cellsX: 2, cellsY: 1, heightUnits: 2, bitSet: 'battery-cr2032' }),
   },
 
+  // ── Lids ───────────────────────────────────────────────────────────────────
+  {
+    id: 'lid-1x1',
+    category: 'lids',
+    name: '1×1 Snap lid',
+    description: 'Slim snap-on lid for a standard 1×1 bin.',
+    tags: ['lid', '1x1', 'snap', 'cover'],
+    model: lid({ cellsX: 1, cellsY: 1 }),
+  },
+  {
+    id: 'lid-2x1',
+    category: 'lids',
+    name: '2×1 Snap lid',
+    description: 'Snap-on lid for a 2×1 wide bin.',
+    tags: ['lid', '2x1', 'snap', 'cover'],
+    model: lid({ cellsX: 2, cellsY: 1 }),
+  },
+  {
+    id: 'lid-2x2',
+    category: 'lids',
+    name: '2×2 Snap lid',
+    description: 'Snap-on lid for a 2×2 bin — common desk organizer cover.',
+    tags: ['lid', '2x2', 'snap', 'cover'],
+    model: lid({ cellsX: 2, cellsY: 2 }),
+  },
+  {
+    id: 'lid-3x2',
+    category: 'lids',
+    name: '3×2 Snap lid',
+    description: 'Snap-on lid for a 3×2 medium storage bin.',
+    tags: ['lid', '3x2', 'snap', 'cover'],
+    model: lid({ cellsX: 3, cellsY: 2 }),
+  },
+  {
+    id: 'lid-tight',
+    category: 'lids',
+    name: '1×1 Tight fit lid',
+    description: '1×1 lid with 0.05 mm clearance for a snug friction fit.',
+    tags: ['lid', 'tight', 'friction', 'snug'],
+    model: lid({ cellsX: 1, cellsY: 1, lidClearance: 0.05 }),
+  },
+
   // ── Trays ──────────────────────────────────────────────────────────────────
   {
     id: 'tray-coin',
@@ -399,14 +446,15 @@ export const CATEGORY_META: Record<
   TemplateCategory,
   { label: string; emoji: string }
 > = {
-  all:         { label: 'All',         emoji: '' },
+  all:           { label: 'All',         emoji: '' },
   'quick-start': { label: 'Quick Start', emoji: '⚡' },
-  bins:        { label: 'Bins',        emoji: '' },
-  organizers:  { label: 'Organizers',  emoji: '' },
-  trays:       { label: 'Trays',       emoji: '' },
-  baseplates:  { label: 'Baseplates',  emoji: '' },
+  bins:          { label: 'Bins',        emoji: '' },
+  lids:          { label: 'Lids',        emoji: '' },
+  organizers:    { label: 'Organizers',  emoji: '' },
+  trays:         { label: 'Trays',       emoji: '' },
+  baseplates:    { label: 'Baseplates',  emoji: '' },
 };
 
 export const CATEGORIES: TemplateCategory[] = [
-  'all', 'quick-start', 'bins', 'organizers', 'trays', 'baseplates',
+  'all', 'quick-start', 'bins', 'lids', 'organizers', 'trays', 'baseplates',
 ];

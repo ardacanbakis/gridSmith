@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Archive, Box, Layers, LayoutGrid, Save, Trash2, Upload, Wrench, X } from 'lucide-react';
+import { Archive, Box, Download, FileInput, Layers, LayoutGrid, PanelTop, Save, Trash2, Upload, Wrench, X } from 'lucide-react';
 import { useDesignStore } from '@/store/designStore';
 import { useDesignLibraryStore, type SavedDesign } from '@/store/designLibraryStore';
+import { DesignSchema } from '@/lib/params/schema';
 import type { ModelParams } from '@/lib/params/schema';
 
 type Props = {
@@ -11,11 +12,12 @@ type Props = {
 };
 
 const KIND_ORDER: Array<ModelParams['kind']> = [
-  'bin', 'drillBitHolder', 'screwOrganizer', 'partsTray', 'baseplate',
+  'bin', 'lid', 'drillBitHolder', 'screwOrganizer', 'partsTray', 'baseplate',
 ];
 
 const KIND_LABEL: Record<ModelParams['kind'], string> = {
   bin:            'Bins',
+  lid:            'Lids',
   baseplate:      'Baseplates',
   drillBitHolder: 'Organizers',
   screwOrganizer: 'Screw organizers',
@@ -24,6 +26,7 @@ const KIND_LABEL: Record<ModelParams['kind'], string> = {
 
 const KIND_ICON: Record<ModelParams['kind'], React.ReactNode> = {
   bin:            <Box size={12} />,
+  lid:            <PanelTop size={12} />,
   baseplate:      <LayoutGrid size={12} />,
   drillBitHolder: <Archive size={12} />,
   screwOrganizer: <Wrench size={12} />,
@@ -47,6 +50,7 @@ function describe(saved: SavedDesign): string {
     const comps = m.divX * m.divY;
     return `${m.cellsX}×${m.cellsY}×${m.heightUnits}u${comps > 1 ? ` · ${comps} comp.` : ''}`;
   }
+  if (m.kind === 'lid') return `${m.cellsX}×${m.cellsY} · ${m.lidClearance}mm clearance`;
   if (m.kind === 'drillBitHolder')
     return `${m.cellsX}×${m.cellsY}×${m.heightUnits}u · ${m.bitSet}`;
   if (m.kind === 'screwOrganizer') return `${m.cellsX}×${m.cellsY} · ${m.cols}×${m.rows}`;
@@ -59,6 +63,7 @@ export function DesignLibraryModal({ open, onClose }: Props) {
   const setDesign = useDesignStore((s) => s.setDesign);
   const { items, save, rename, remove } = useDesignLibraryStore();
   const [name, setName] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!open) return;
@@ -90,6 +95,44 @@ export function DesignLibraryModal({ open, onClose }: Props) {
     if (window.confirm(t('library.deleteConfirm', { name: saved.name }))) remove(saved.id);
   };
 
+  const onExport = () => {
+    const json = JSON.stringify(items, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `gridsmith-library-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const onImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      try {
+        const raw = JSON.parse(String(ev.target?.result));
+        if (!Array.isArray(raw)) return;
+        let imported = 0;
+        for (const entry of raw) {
+          const designResult = DesignSchema.safeParse(entry?.design);
+          if (!designResult.success) continue;
+          save(
+            typeof entry.name === 'string' && entry.name ? entry.name : 'Imported',
+            designResult.data,
+          );
+          imported++;
+        }
+        if (imported === 0) alert('No valid designs found in the file.');
+      } catch {
+        alert('Could not read the file. Make sure it is a valid Gridsmith library export.');
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
   return (
     <div
       className="fixed inset-0 z-50 bg-black/50 grid place-items-center"
@@ -101,9 +144,34 @@ export function DesignLibraryModal({ open, onClose }: Props) {
       >
         <div className="flex items-center justify-between px-4 py-3 border-b border-border">
           <h2 className="text-sm font-semibold">{t('library.title')}</h2>
-          <button onClick={onClose} className="text-text-muted hover:text-text">
-            <X size={16} />
-          </button>
+          <div className="flex items-center gap-1">
+            {items.length > 0 && (
+              <button
+                onClick={onExport}
+                title="Export library as JSON"
+                className="p-1.5 rounded text-text-muted hover:text-text hover:bg-bg-elevated transition-colors"
+              >
+                <Download size={14} />
+              </button>
+            )}
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              title="Import designs from JSON file"
+              className="p-1.5 rounded text-text-muted hover:text-text hover:bg-bg-elevated transition-colors"
+            >
+              <FileInput size={14} />
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".json"
+              className="hidden"
+              onChange={onImport}
+            />
+            <button onClick={onClose} className="p-1.5 text-text-muted hover:text-text">
+              <X size={14} />
+            </button>
+          </div>
         </div>
 
         <div className="px-4 py-3 border-b border-border flex gap-2">

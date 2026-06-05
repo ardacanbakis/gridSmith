@@ -4,6 +4,7 @@ import {
   buildBaseplate,
   buildBin,
   buildDrillBitHolder,
+  buildLid,
   buildScrewOrganizer,
   buildPartsTray,
   type LabelTextData,
@@ -96,6 +97,10 @@ async function buildManifold(request: GeometryRequest): Promise<{
 
   if (request.model.kind === 'partsTray') {
     return { m, result: buildPartsTray(m, spec, request.model) };
+  }
+
+  if (request.model.kind === 'lid') {
+    return { m, result: buildLid(m, spec, request.model) };
   }
 
   const bits = bitsForSet(request.model.bitSet, request.model.customBits);

@@ -1,10 +1,11 @@
 import { useRef, useState, type ReactNode } from 'react';
-import { Archive, Box, ChevronDown, ChevronRight, Layers, LayoutGrid, Plus, Wrench, X } from 'lucide-react';
+import { Archive, Box, ChevronDown, ChevronRight, Layers, LayoutGrid, PanelTop, Plus, Wrench, X } from 'lucide-react';
 import { useDesignStore } from '@/store/designStore';
 import {
   BaseplateParamsSchema,
   BinParamsSchema,
   DrillBitHolderParamsSchema,
+  LidParamsSchema,
   ScrewOrganizerParamsSchema,
   PartsTrayParamsSchema,
   type CompartmentLabelStyle,
@@ -23,6 +24,7 @@ type ModelKind = ReturnType<typeof useDesignStore.getState>['design']['model']['
 
 const MODEL_OPTIONS: Array<{ kind: ModelKind; label: string; description: string; icon: ReactNode }> = [
   { kind: 'bin', label: 'Bin', description: 'Hollow storage bin with dividers & labels', icon: <Box size={16} /> },
+  { kind: 'lid', label: 'Lid', description: 'Snap-on lid that fits over any bin', icon: <PanelTop size={16} /> },
   { kind: 'baseplate', label: 'Plate', description: 'Gridfinity-compatible baseplate', icon: <LayoutGrid size={16} /> },
   { kind: 'drillBitHolder', label: 'Organizers', description: 'Cylindrical holes for tools & batteries', icon: <Archive size={16} /> },
   { kind: 'screwOrganizer', label: 'Screws', description: 'Divided tray with tilt & per-column labels', icon: <Wrench size={16} /> },
@@ -39,7 +41,7 @@ function ModelTypePicker({
   const active = MODEL_OPTIONS.find((o) => o.kind === value);
   return (
     <div className="flex flex-col gap-1.5">
-      <div className="grid grid-cols-5 gap-1 p-1 bg-bg-elevated rounded-md border border-border">
+      <div className="grid grid-cols-3 gap-1 p-1 bg-bg-elevated rounded-md border border-border">
         {MODEL_OPTIONS.map((opt) => (
           <button
             key={opt.kind}
@@ -1032,6 +1034,53 @@ export function ParameterPanel({ mode = 'all', side = 'left' }: Props) {
                   value={model.screwHoles}
                   onChange={(v) => setModel(PartsTrayParamsSchema.parse({ ...model, screwHoles: v }))}
                 />
+              </Section>
+            )}
+          </>
+        ) : model.kind === 'lid' ? (
+          <>
+            {showCore && (
+              <Section title="Size">
+                <NumberField
+                  label="Cells X"
+                  value={model.cellsX}
+                  min={1}
+                  max={20}
+                  onChange={(v) => setModel(LidParamsSchema.parse({ ...model, cellsX: v }))}
+                />
+                <NumberField
+                  label="Cells Y"
+                  value={model.cellsY}
+                  min={1}
+                  max={20}
+                  onChange={(v) => setModel(LidParamsSchema.parse({ ...model, cellsY: v }))}
+                />
+              </Section>
+            )}
+
+            {showFinish && (
+              <Section title="Fit" defaultOpen={true}>
+                <NumberField
+                  label="Wall thickness"
+                  value={model.wallThickness}
+                  min={0.8}
+                  max={4}
+                  step={0.1}
+                  onChange={(v) => setModel(LidParamsSchema.parse({ ...model, wallThickness: v }))}
+                  format={len(2)}
+                />
+                <NumberField
+                  label="Clearance"
+                  value={model.lidClearance}
+                  min={0}
+                  max={0.5}
+                  step={0.05}
+                  onChange={(v) => setModel(LidParamsSchema.parse({ ...model, lidClearance: v }))}
+                  format={(v) => `${v.toFixed(2)} mm`}
+                />
+                <p className="text-xs text-text-dim leading-snug">
+                  Clearance sets the gap between the lid grip and the bin opening. 0.15 mm works for most printers.
+                </p>
               </Section>
             )}
           </>

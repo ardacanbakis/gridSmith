@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Archive, Box, Layers, LayoutGrid, Search, X, Zap } from 'lucide-react';
+import { Archive, Box, Layers, LayoutGrid, PanelTop, Search, X, Zap } from 'lucide-react';
 import { useDesignStore } from '@/store/designStore';
 import { BIT_SETS } from '@/lib/gridfinity/bitSets';
 import {
@@ -81,6 +81,18 @@ function ModelSchematic({ model }: { model: ModelParams }) {
     );
   }
 
+  if (model.kind === 'lid') {
+    return (
+      <svg viewBox="0 0 44 30" fill="none" className="h-10 w-auto text-text-muted">
+        {/* Outer plate */}
+        <rect x="3" y="3" width="38" height="8" rx="2" stroke="currentColor" strokeWidth="1.8" />
+        {/* Grip ring (hollow, below plate) */}
+        <rect x="9" y="11" width="26" height="13" rx="1.5" stroke="currentColor" strokeWidth="1.4" />
+        <rect x="13" y="13" width="18" height="9" rx="1" stroke="currentColor" strokeWidth="1" strokeDasharray="2 1.5" />
+      </svg>
+    );
+  }
+
   if (model.kind === 'screwOrganizer') {
     const cols = Math.min(model.cols, 7);
     return (
@@ -125,12 +137,13 @@ function ModelSchematic({ model }: { model: ModelParams }) {
 // ── Category sidebar ───────────────────────────────────────────────────────
 
 const CATEGORY_ICONS: Record<TemplateCategory, React.ReactNode> = {
-  all:          <LayoutGrid size={13} />,
+  all:           <LayoutGrid size={13} />,
   'quick-start': <Zap size={13} />,
-  bins:         <Box size={13} />,
-  organizers:   <Archive size={13} />,
-  trays:        <Layers size={13} />,
-  baseplates:   <LayoutGrid size={13} />,
+  bins:          <Box size={13} />,
+  lids:          <PanelTop size={13} />,
+  organizers:    <Archive size={13} />,
+  trays:         <Layers size={13} />,
+  baseplates:    <LayoutGrid size={13} />,
 };
 
 function CategorySidebar({
