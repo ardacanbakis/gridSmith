@@ -8,6 +8,7 @@ import {
   FolderOpen,
   Grid2x2,
   Home,
+  LayoutTemplate,
   Maximize,
   Maximize2,
   Minimize,
@@ -33,6 +34,7 @@ type Props = {
   exporting: boolean;
   onOpenLibrary: () => void;
   onOpenWelcome: () => void;
+  onOpenTemplates: () => void;
 };
 
 const FORMAT_IDS: ExportFormat[] = ['stl', '3mf', 'step'];
@@ -77,7 +79,7 @@ function Divider() {
   return <div className="h-5 w-px bg-border mx-1.5" />;
 }
 
-export function Header({ onExport, exporting, onOpenLibrary, onOpenWelcome }: Props) {
+export function Header({ onExport, exporting, onOpenLibrary, onOpenWelcome, onOpenTemplates }: Props) {
   const { t } = useTranslation();
   const formats = FORMAT_IDS.map((id) => ({
     id,
@@ -173,6 +175,15 @@ export function Header({ onExport, exporting, onOpenLibrary, onOpenWelcome }: Pr
           <span className="text-accent-fg font-bold text-xs">G</span>
         </div>
         <h1 className="text-sm font-semibold tracking-wide hidden md:block">Gridsmith</h1>
+      </button>
+
+      <button
+        onClick={onOpenTemplates}
+        title="Browse starter templates"
+        className="flex items-center gap-1.5 h-8 px-2.5 rounded text-xs font-medium text-text-muted hover:text-text hover:bg-bg-elevated transition-colors shrink-0"
+      >
+        <LayoutTemplate size={14} />
+        <span className="hidden lg:inline">Templates</span>
       </button>
 
       <div className="flex-1" />

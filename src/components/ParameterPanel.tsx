@@ -21,12 +21,12 @@ export type PanelSide = 'left' | 'right';
 
 type ModelKind = ReturnType<typeof useDesignStore.getState>['design']['model']['kind'];
 
-const MODEL_OPTIONS: Array<{ kind: ModelKind; label: string; icon: ReactNode }> = [
-  { kind: 'bin', label: 'Bin', icon: <Box size={16} /> },
-  { kind: 'baseplate', label: 'Plate', icon: <LayoutGrid size={16} /> },
-  { kind: 'drillBitHolder', label: 'Organizers', icon: <Archive size={16} /> },
-  { kind: 'screwOrganizer', label: 'Screws', icon: <Wrench size={16} /> },
-  { kind: 'partsTray', label: 'Tray', icon: <Layers size={16} /> },
+const MODEL_OPTIONS: Array<{ kind: ModelKind; label: string; description: string; icon: ReactNode }> = [
+  { kind: 'bin', label: 'Bin', description: 'Hollow storage bin with dividers & labels', icon: <Box size={16} /> },
+  { kind: 'baseplate', label: 'Plate', description: 'Gridfinity-compatible baseplate', icon: <LayoutGrid size={16} /> },
+  { kind: 'drillBitHolder', label: 'Organizers', description: 'Cylindrical holes for tools & batteries', icon: <Archive size={16} /> },
+  { kind: 'screwOrganizer', label: 'Screws', description: 'Divided tray with tilt & per-column labels', icon: <Wrench size={16} /> },
+  { kind: 'partsTray', label: 'Tray', description: 'Grid of circular or square pockets', icon: <Layers size={16} /> },
 ];
 
 function ModelTypePicker({
@@ -36,24 +36,32 @@ function ModelTypePicker({
   value: ModelKind;
   onChange: (k: ModelKind) => void;
 }) {
+  const active = MODEL_OPTIONS.find((o) => o.kind === value);
   return (
-    <div className="grid grid-cols-5 gap-1 p-1 bg-bg-elevated rounded-md border border-border">
-      {MODEL_OPTIONS.map((opt) => (
-        <button
-          key={opt.kind}
-          onClick={() => onChange(opt.kind)}
-          className={[
-            'flex flex-col items-center justify-center gap-1 py-2 rounded-md text-[11px] font-medium transition-colors',
-            value === opt.kind
-              ? 'bg-accent text-accent-fg shadow-sm'
-              : 'text-text-muted hover:text-text hover:bg-bg-panel',
-          ].join(' ')}
-          title={opt.label}
-        >
-          {opt.icon}
-          <span>{opt.label}</span>
-        </button>
-      ))}
+    <div className="flex flex-col gap-1.5">
+      <div className="grid grid-cols-5 gap-1 p-1 bg-bg-elevated rounded-md border border-border">
+        {MODEL_OPTIONS.map((opt) => (
+          <button
+            key={opt.kind}
+            onClick={() => onChange(opt.kind)}
+            className={[
+              'flex flex-col items-center justify-center gap-1 py-2 rounded-md text-[11px] font-medium transition-colors',
+              value === opt.kind
+                ? 'bg-accent text-accent-fg shadow-sm'
+                : 'text-text-muted hover:text-text hover:bg-bg-panel',
+            ].join(' ')}
+            title={opt.description}
+          >
+            {opt.icon}
+            <span>{opt.label}</span>
+          </button>
+        ))}
+      </div>
+      {active && (
+        <p className="text-[11px] text-text-dim text-center leading-tight px-1">
+          {active.description}
+        </p>
+      )}
     </div>
   );
 }
@@ -240,10 +248,12 @@ function SegmentedControl<T extends string>({
 }
 
 type TemplateEntry = { id: Exclude<BitSetId, 'custom'>; imperialOnly?: true };
+type BrowserTab = 'drillBits' | 'router' | 'batteries';
 
-const TEMPLATE_GROUPS: Array<{ label: string; entries: TemplateEntry[] }> = [
+const BROWSER_TABS: Array<{ id: BrowserTab; label: string; entries: TemplateEntry[] }> = [
   {
-    label: 'Drill bits',
+    id: 'drillBits',
+    label: 'Drill Bits',
     entries: [
       { id: 'metric-basic' },
       { id: 'metric-fine' },
@@ -253,7 +263,8 @@ const TEMPLATE_GROUPS: Array<{ label: string; entries: TemplateEntry[] }> = [
     ],
   },
   {
-    label: 'Router bits',
+    id: 'router',
+    label: 'Router',
     entries: [
       { id: 'router-6mm' },
       { id: 'router-8mm' },
@@ -263,6 +274,7 @@ const TEMPLATE_GROUPS: Array<{ label: string; entries: TemplateEntry[] }> = [
     ],
   },
   {
+    id: 'batteries',
     label: 'Batteries',
     entries: [
       { id: 'battery-aa' },
@@ -284,39 +296,82 @@ function TemplateBrowser({
   units: Units;
   onChange: (id: BitSetId) => void;
 }) {
+  const [activeTab, setActiveTab] = useState<BrowserTab>('drillBits');
+  const [search, setSearch] = useState('');
+
+  const currentTab = BROWSER_TABS.find((t) => t.id === activeTab)!;
+  const entries = currentTab.entries.filter((e) => !e.imperialOnly || units === 'imperial');
+
+  const q = search.trim().toLowerCase();
+  const visible = q
+    ? entries.filter(({ id }) => BIT_SETS[id].label.toLowerCase().includes(q))
+    : entries;
+
   return (
-    <div className="flex flex-col gap-3">
-      {TEMPLATE_GROUPS.map((group) => {
-        const visible = group.entries.filter((e) => !e.imperialOnly || units === 'imperial');
-        if (visible.length === 0) return null;
-        return (
-          <div key={group.label} className="flex flex-col gap-1">
-            <span className="label">{group.label}</span>
-            {visible.map(({ id }) => {
-              const bs = BIT_SETS[id];
-              const selected = value === id;
-              return (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => onChange(id)}
-                  className={[
-                    'text-left px-2.5 py-2 rounded-md border transition-colors',
-                    selected
-                      ? 'border-accent bg-accent/10'
-                      : 'border-border hover:border-border-strong hover:bg-bg-elevated',
-                  ].join(' ')}
-                >
-                  <p className={`text-xs font-medium ${selected ? 'text-accent' : 'text-text'}`}>{bs.label}</p>
-                  <p className="text-[11px] text-text-dim mt-0.5">{bs.description}</p>
-                </button>
-              );
-            })}
-          </div>
-        );
-      })}
+    <div className="flex flex-col gap-2">
+      {/* Tabs */}
+      <div className="grid grid-cols-3 gap-0.5 p-0.5 bg-bg-elevated rounded-md border border-border">
+        {BROWSER_TABS.map((tab) => {
+          const count = tab.entries.filter((e) => !e.imperialOnly || units === 'imperial').length;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => { setActiveTab(tab.id); setSearch(''); }}
+              className={[
+                'py-1 rounded text-[11px] font-medium transition-colors flex flex-col items-center gap-0',
+                activeTab === tab.id
+                  ? 'bg-accent text-accent-fg shadow-sm'
+                  : 'text-text-muted hover:text-text',
+              ].join(' ')}
+            >
+              <span>{tab.label}</span>
+              <span className={`text-[10px] ${activeTab === tab.id ? 'text-accent-fg/70' : 'text-text-dim'}`}>{count}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Search */}
+      <input
+        type="text"
+        className="input text-xs py-1"
+        placeholder="Filter…"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+      />
+
+      {/* List */}
       <div className="flex flex-col gap-1">
-        <span className="label">Custom</span>
+        {visible.map(({ id }) => {
+          const bs = BIT_SETS[id];
+          const selected = value === id;
+          const count = bs.diameters.length;
+          return (
+            <button
+              key={id}
+              type="button"
+              onClick={() => onChange(id)}
+              className={[
+                'text-left px-2.5 py-2 rounded-md border transition-colors',
+                selected
+                  ? 'border-accent bg-accent/10'
+                  : 'border-border hover:border-border-strong hover:bg-bg-elevated',
+              ].join(' ')}
+            >
+              <div className="flex items-center justify-between gap-1">
+                <p className={`text-xs font-medium leading-tight ${selected ? 'text-accent' : 'text-text'}`}>{bs.label}</p>
+                <span className={`text-[10px] tabular shrink-0 ${selected ? 'text-accent' : 'text-text-dim'}`}>{count}</span>
+              </div>
+              <p className="text-[11px] text-text-dim mt-0.5">{bs.description}</p>
+            </button>
+          );
+        })}
+        {visible.length === 0 && (
+          <p className="text-xs text-text-dim py-2 text-center">No presets match.</p>
+        )}
+
+        {/* Custom option */}
         <button
           type="button"
           onClick={() => onChange('custom')}

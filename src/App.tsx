@@ -6,6 +6,7 @@ import { ParameterPanel } from './components/ParameterPanel';
 import { Viewport } from './components/Viewport';
 import { InfoOverlay } from './components/InfoOverlay';
 import { DesignLibraryModal } from './components/DesignLibraryModal';
+import { TemplateGallery } from './components/TemplateGallery';
 import { WelcomeScreen, useWelcomeScreen } from './components/WelcomeScreen';
 import { useDesignStore } from './store/designStore';
 import { useViewportStore } from './store/viewportStore';
@@ -30,6 +31,7 @@ export default function App() {
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [libraryOpen, setLibraryOpen] = useState(false);
+  const [templateOpen, setTemplateOpen] = useState(false);
   const buildSeq = useRef(0);
   const firstBuild = useRef(true);
 
@@ -113,12 +115,14 @@ export default function App() {
   return (
     <>
     {showWelcome && <WelcomeScreen onDismiss={dismiss} />}
+    <TemplateGallery open={templateOpen} onClose={() => setTemplateOpen(false)} />
     <div className="h-full flex flex-col">
       <Header
         onExport={onExport}
         exporting={exporting}
         onOpenLibrary={() => setLibraryOpen(true)}
         onOpenWelcome={showWelcomeScreen}
+        onOpenTemplates={() => setTemplateOpen(true)}
       />
       <div className="flex-1 flex min-h-0">
         <ParameterPanel mode={duoSidebar ? 'core' : 'all'} side="left" />
