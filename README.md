@@ -19,6 +19,7 @@ Every calculation and geometry operation runs inside your browser. Nothing is ev
 | Type | What you get |
 |---|---|
 | **Bin** | Standard Gridfinity bin — set width, depth, and height in grid cells and height units. Add internal dividers, a scoop ramp, labels, and mounting holes. |
+| **Lid** | Snap-on lid that covers any bin — a flat plate with a hollow grip ring that slides into the bin opening. Tune wall thickness and fit clearance for your printer. |
 | **Baseplate** | Flat plate with the Gridfinity base profile recessed in — minimal (thin) or rigid (+1.2 mm slab). |
 | **Organizers** | Solid block with cylindrical holes drilled from the top. Built-in presets for metric drill bits, router shanks (metric and imperial), and batteries. Also accepts a custom diameter list. |
 | **Screw Organizer** | Divided bin with optional back-tilt wedge per compartment — screws roll to the front by gravity. Per-column embossed or engraved labels. |
@@ -47,8 +48,14 @@ Every parameter change rebuilds the mesh in real time using Manifold, a high-per
 ### Gridfinity Spec Compliance
 The default grid is exactly 42 mm × 7 mm — compatible with any stock Gridfinity bin and baseplate. The grid unit and height unit are both adjustable; all dimensions (base profile, clearance, magnet inset, stacking lip) scale proportionally. A badge appears in the sidebar if you deviate from spec.
 
+### Template Gallery
+A full-screen gallery of 45+ ready-to-use starter designs, grouped into Quick Start, Bins, Lids, Organizers, Trays, and Baseplates. Each card shows a parametric schematic drawn from its actual geometry. Search by name or tag, then click any card to apply it — every parameter remains editable afterward. Open it from the header or press `T`.
+
 ### Organizer Templates
-The Organizers panel includes a browsable template library grouped by category. Imperial presets (fractional-inch, letter, number drill sets; ¼″ / ⅛″ router shanks) are automatically hidden when metric units are selected.
+The Organizers panel includes a browsable template library grouped by category (Drill Bits, Router, Batteries) with live search. Imperial presets (fractional-inch, letter, number drill sets; ¼″ / ⅛″ router shanks) are automatically hidden when metric units are selected.
+
+### Design Library
+Save any design to a local library, grouped by model type. Export the whole library to a JSON file as a backup or to share, and import designs back in — every entry is validated on import. Open it from the header or press `L`.
 
 ### Share by URL
 The entire design — every parameter — is encoded into the URL. Copying the address bar gives you a shareable link that reconstructs the exact design.
@@ -58,6 +65,16 @@ Gridsmith is a Progressive Web App. After your first visit it works without an i
 
 ### Undo / Redo
 Full 50-step undo/redo history with `Ctrl+Z` / `Ctrl+Shift+Z` keyboard shortcuts. Rapid slider drags are coalesced into a single undo step.
+
+### Keyboard Shortcuts
+| Key | Action |
+|---|---|
+| `T` | Open the template gallery |
+| `L` | Open the design library |
+| `F` | Fit the model to the viewport |
+| `R` | Recenter the camera |
+| `Ctrl+Z` / `Ctrl+Shift+Z` | Undo / redo |
+| `?` | Show the keyboard shortcut help |
 
 ### Dual Sidebar Mode
 Toggle a second sidebar to show finishing options (labels, mounting holes) alongside the core size controls — useful on wide screens.
