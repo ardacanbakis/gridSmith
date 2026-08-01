@@ -68,7 +68,7 @@ function describeContent(model: ReturnType<typeof useDesignStore.getState>['desi
     return parts.join(' · ');
   }
   if (model.kind === 'drillBitHolder') {
-    return `Holders · ${model.bitSet} · ${model.holeDepth}mm deep`;
+    return `Drill bits · ${model.bitSet} · ${model.holeDepth}mm deep`;
   }
   if (model.kind === 'screwOrganizer') {
     return `Screws · ${model.cols}×${model.rows} compartments · ${model.tiltDegrees}° tilt`;

@@ -1,13 +1,17 @@
 /**
- * Round-pocket holder presets — drill bits, router shanks, batteries.
- * All diameters in millimetres; letter/number gauge sizes converted from inches.
+ * Standard drill-bit set presets. All diameters in millimetres.
+ * Fractional, letter, and number sets are converted to mm so the geometry
+ * kernel only deals in one unit.
  */
 
 export type BitSetId =
   | 'metric-basic'
   | 'metric-fine'
+  | 'fractional-inch'
   | 'letter'
   | 'number'
+  | 'router-quarter'
+  | 'router-eighth'
   | 'router-6mm'
   | 'router-8mm'
   | 'router-12mm'
@@ -32,6 +36,10 @@ function mm(n: number, label: string) {
   return { mm: n, label };
 }
 
+function frac(num: number, den: number): { mm: number; label: string } {
+  return { mm: (num / den) * MM_PER_INCH, label: `${num}/${den}"` };
+}
+
 const METRIC_BASIC: ReadonlyArray<{ mm: number; label: string }> = (() => {
   const out: Array<{ mm: number; label: string }> = [];
   for (let d = 1; d <= 13; d += 1) out.push(mm(d, `${d} mm`));
@@ -43,6 +51,24 @@ const METRIC_FINE: ReadonlyArray<{ mm: number; label: string }> = (() => {
   for (let d = 1; d <= 13; d += 0.5) out.push(mm(d, `${d} mm`));
   return out;
 })();
+
+const FRACTIONAL: ReadonlyArray<{ mm: number; label: string }> = [
+  frac(1, 16),
+  frac(3, 32),
+  frac(1, 8),
+  frac(5, 32),
+  frac(3, 16),
+  frac(7, 32),
+  frac(1, 4),
+  frac(9, 32),
+  frac(5, 16),
+  frac(11, 32),
+  frac(3, 8),
+  frac(13, 32),
+  frac(7, 16),
+  frac(15, 32),
+  frac(1, 2),
+];
 
 const LETTER_SIZES_IN: ReadonlyArray<[string, number]> = [
   ['A', 0.234], ['B', 0.238], ['C', 0.242], ['D', 0.246], ['E', 0.250],
@@ -109,6 +135,12 @@ export const BIT_SETS: Record<Exclude<BitSetId, 'custom'>, BitSet> = {
     description: 'Half-mm steps, 25 bits.',
     diameters: METRIC_FINE,
   },
+  'fractional-inch': {
+    id: 'fractional-inch',
+    label: 'Fractional 1/16" – 1/2"',
+    description: '32nds, 15 bits.',
+    diameters: FRACTIONAL,
+  },
   letter: {
     id: 'letter',
     label: 'Letter A – Z',
@@ -121,6 +153,8 @@ export const BIT_SETS: Record<Exclude<BitSetId, 'custom'>, BitSet> = {
     description: 'Wire gauge, 30 bits.',
     diameters: NUMBER,
   },
+  'router-quarter': routerShank('router-quarter', 'Router 1/4" shank ×12', 6.35, 12, '1/4"'),
+  'router-eighth': routerShank('router-eighth', 'Router 1/8" shank ×16', 3.175, 16, '1/8"'),
   'router-6mm': routerShank('router-6mm', 'Router 6 mm shank ×12', 6, 12, '6 mm'),
   'router-8mm': routerShank('router-8mm', 'Router 8 mm shank ×9', 8, 9, '8 mm'),
   'router-12mm': routerShank('router-12mm', 'Router 12 mm shank ×6', 12, 6, '12 mm'),
