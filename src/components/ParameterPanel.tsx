@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react';
-import { Box, ChevronDown, ChevronRight, Drill, LayoutGrid, Plus, Wrench, X } from 'lucide-react';
+import { Box, ChevronDown, ChevronRight, LayoutGrid, Package, Plus, Wrench, X } from 'lucide-react';
 import { useDesignStore } from '@/store/designStore';
 import {
   BaseplateParamsSchema,
@@ -22,7 +22,7 @@ type ModelKind = ReturnType<typeof useDesignStore.getState>['design']['model']['
 const MODEL_OPTIONS: Array<{ kind: ModelKind; label: string; icon: ReactNode }> = [
   { kind: 'bin', label: 'Bin', icon: <Box size={16} /> },
   { kind: 'baseplate', label: 'Plate', icon: <LayoutGrid size={16} /> },
-  { kind: 'drillBitHolder', label: 'Drill bits', icon: <Drill size={16} /> },
+  { kind: 'drillBitHolder', label: 'Holders', icon: <Package size={16} /> },
   { kind: 'screwOrganizer', label: 'Screws', icon: <Wrench size={16} /> },
 ];
 
@@ -211,7 +211,7 @@ function CustomBitsEditor({
   return (
     <div className="flex flex-col gap-1.5">
       {bits.length === 0 && (
-        <p className="text-xs text-text-dim">No custom bits — add one to start.</p>
+        <p className="text-xs text-text-dim">No custom sizes — add one to start.</p>
       )}
       {bits.map((b, i) => (
         <div key={i} className="flex items-center gap-2">
@@ -241,7 +241,7 @@ function CustomBitsEditor({
         onClick={add}
         className="btn text-xs flex items-center gap-1 self-start mt-1"
       >
-        <Plus size={12} /> Add bit
+        <Plus size={12} /> Add size
       </button>
     </div>
   );
@@ -605,7 +605,7 @@ export function ParameterPanel({ mode = 'all', side = 'left' }: Props) {
             )}
 
             {showCore && (
-              <Section title="Bit set">
+              <Section title="Pocket type">
                 <label className="flex flex-col gap-1">
                   <span className="label normal-case">Preset</span>
                   <select
@@ -622,7 +622,7 @@ export function ParameterPanel({ mode = 'all', side = 'left' }: Props) {
                   >
                     {Object.values(BIT_SETS).map((bs) => (
                       <option key={bs.id} value={bs.id}>
-                        {bs.label} — {bs.diameters.length} bits
+                        {bs.label} — {bs.diameters.length} pockets
                       </option>
                     ))}
                     <option value="custom">Custom list…</option>

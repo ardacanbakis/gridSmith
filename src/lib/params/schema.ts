@@ -9,9 +9,17 @@ export type LabelStyle = z.infer<typeof LabelStyleSchema>;
 export const BitSetIdSchema = z.enum([
   'metric-basic',
   'metric-fine',
-  'fractional-inch',
   'letter',
   'number',
+  'router-6mm',
+  'router-8mm',
+  'router-12mm',
+  'battery-aa',
+  'battery-aaa',
+  'battery-18650-4',
+  'battery-18650-8',
+  'battery-cr2032',
+  'battery-mixed',
   'custom',
 ]);
 export type BitSetId = z.infer<typeof BitSetIdSchema>;
