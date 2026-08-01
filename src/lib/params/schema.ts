@@ -12,6 +12,17 @@ export const BitSetIdSchema = z.enum([
   'fractional-inch',
   'letter',
   'number',
+  'router-quarter',
+  'router-eighth',
+  'router-6mm',
+  'router-8mm',
+  'router-12mm',
+  'battery-aa',
+  'battery-aaa',
+  'battery-18650-4',
+  'battery-18650-8',
+  'battery-cr2032',
+  'battery-mixed',
   'custom',
 ]);
 export type BitSetId = z.infer<typeof BitSetIdSchema>;
@@ -89,11 +100,40 @@ export const ScrewOrganizerParamsSchema = z.object({
 });
 export type ScrewOrganizerParams = z.infer<typeof ScrewOrganizerParamsSchema>;
 
+export const PartsTrayParamsSchema = z.object({
+  kind: z.literal('partsTray'),
+  cellsX: z.number().int().min(1).max(20).default(2),
+  cellsY: z.number().int().min(1).max(20).default(2),
+  heightUnits: z.number().int().min(1).max(30).default(2),
+  pocketShape: z.enum(['circle', 'square']).default('circle'),
+  pocketSize: z.number().min(3).max(60).default(22),
+  pocketDepth: z.number().min(1).max(50).default(10),
+  pocketCols: z.number().int().min(1).max(20).default(3),
+  pocketRows: z.number().int().min(1).max(20).default(3),
+  pocketSpacing: z.number().min(0.5).max(10).default(2),
+  edgeClearance: z.number().min(1).max(15).default(3),
+  stackingLip: z.boolean().default(false),
+  magnetHoles: z.boolean().default(false),
+  screwHoles: z.boolean().default(false),
+});
+export type PartsTrayParams = z.infer<typeof PartsTrayParamsSchema>;
+
+export const LidParamsSchema = z.object({
+  kind: z.literal('lid'),
+  cellsX: z.number().int().min(1).max(20).default(1),
+  cellsY: z.number().int().min(1).max(20).default(1),
+  wallThickness: z.number().min(0.8).max(4).default(1.2),
+  lidClearance: z.number().min(0).max(0.5).default(0.15),
+});
+export type LidParams = z.infer<typeof LidParamsSchema>;
+
 export const ModelParamsSchema = z.discriminatedUnion('kind', [
   BaseplateParamsSchema,
   BinParamsSchema,
   DrillBitHolderParamsSchema,
   ScrewOrganizerParamsSchema,
+  PartsTrayParamsSchema,
+  LidParamsSchema,
 ]);
 export type ModelParams = z.infer<typeof ModelParamsSchema>;
 

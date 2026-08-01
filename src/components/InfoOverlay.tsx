@@ -12,6 +12,23 @@ type Props = {
 /** Density in g/cm³ for typical filaments. PLA is the assumed default. */
 const PLA_DENSITY = 1.24;
 
+/**
+ * Rough print-time estimate.
+ * Assumes 0.4 mm nozzle / 0.2 mm layers / 50 mm/s → peak 4 mm³/s,
+ * discounted by ~50% for acceleration, retracts, and travel → ~2 mm³/s average.
+ */
+function estimatePrintMinutes(volumeMm3: number): number {
+  return volumeMm3 / (2 * 60); // 2 mm³/s → mm³/min
+}
+
+function fmtMinutes(min: number): string {
+  const rounded = Math.max(1, Math.round(min));
+  if (rounded < 60) return `${rounded} min`;
+  const h = Math.floor(rounded / 60);
+  const m = rounded % 60;
+  return m === 0 ? `${h} h` : `${h} h ${m} min`;
+}
+
 export function InfoOverlay({ bbox, stats }: Props) {
   const { design } = useDesignStore();
   const { printerId, customPlate } = useViewportStore();
@@ -39,7 +56,7 @@ export function InfoOverlay({ bbox, stats }: Props) {
   const volumeText = stats?.volumeMm3
     ? `${(stats.volumeMm3 / 1000).toFixed(1)} cm³ · ~${
         ((stats.volumeMm3 / 1000) * PLA_DENSITY).toFixed(1)
-      } g PLA`
+      } g PLA · ~${fmtMinutes(estimatePrintMinutes(stats.volumeMm3))}`
     : null;
 
   return (
@@ -72,6 +89,12 @@ function describeContent(model: ReturnType<typeof useDesignStore.getState>['desi
   }
   if (model.kind === 'screwOrganizer') {
     return `Screws · ${model.cols}×${model.rows} compartments · ${model.tiltDegrees}° tilt`;
+  }
+  if (model.kind === 'partsTray') {
+    return `Parts tray ${model.cellsX}×${model.cellsY}×${model.heightUnits}u · ${model.pocketCols}×${model.pocketRows} ${model.pocketShape} pockets Ø${model.pocketSize}mm`;
+  }
+  if (model.kind === 'lid') {
+    return `Lid ${model.cellsX}×${model.cellsY} · ${model.lidClearance}mm clearance`;
   }
   return null;
 }

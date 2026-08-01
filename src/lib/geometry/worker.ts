@@ -4,7 +4,9 @@ import {
   buildBaseplate,
   buildBin,
   buildDrillBitHolder,
+  buildLid,
   buildScrewOrganizer,
+  buildPartsTray,
   type LabelTextData,
 } from '@/lib/gridfinity/primitives';
 import { getLabelFont } from '@/lib/labels/font';
@@ -14,6 +16,7 @@ import { buildSpec } from '@/lib/gridfinity/spec';
 import { bitsForSet } from '@/lib/gridfinity/bitSets';
 import { meshToBinaryStl } from './stl';
 import { meshTo3mf } from './threeMf';
+import { meshToStep } from './step';
 import type { GeometryRequest, GeometryResponse, GeometryWorkerApi, MeshData, BuildStats } from './types';
 import type { Manifold, ManifoldToplevel } from 'manifold-3d';
 
@@ -92,6 +95,14 @@ async function buildManifold(request: GeometryRequest): Promise<{
     };
   }
 
+  if (request.model.kind === 'partsTray') {
+    return { m, result: buildPartsTray(m, spec, request.model) };
+  }
+
+  if (request.model.kind === 'lid') {
+    return { m, result: buildLid(m, spec, request.model) };
+  }
+
   const bits = bitsForSet(request.model.bitSet, request.model.customBits);
   const { result, placed, dropped } = buildDrillBitHolder(m, spec, {
     ...request.model,
@@ -163,6 +174,13 @@ const api: GeometryWorkerApi = {
     const mesh = toMeshData(result);
     result.delete();
     return meshTo3mf(mesh, `gridsmith-${request.model.kind}`);
+  },
+
+  async exportStep(request: GeometryRequest): Promise<ArrayBuffer> {
+    const { result } = await buildManifold(request);
+    const mesh = toMeshData(result);
+    result.delete();
+    return meshToStep(mesh, `gridsmith-${request.model.kind}`);
   },
 };
 
