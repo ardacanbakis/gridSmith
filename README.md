@@ -20,7 +20,7 @@ Every calculation and geometry operation runs inside your browser. Nothing is ev
 |---|---|
 | **Bin** | Standard Gridfinity bin — set width, depth, and height in grid cells and height units. Add internal dividers, a scoop ramp, labels, and mounting holes. |
 | **Lid** | Snap-on lid that covers any bin — a flat plate with a hollow grip ring that slides into the bin opening. Tune wall thickness and fit clearance for your printer. |
-| **Baseplate** | Flat plate with the Gridfinity base profile recessed in — minimal (thin) or rigid (+1.2 mm slab). |
+| **Baseplate** | Plate with the Gridfinity base profile recessed in — minimal (open frame) or rigid (solid floor under the pockets). Rigid plates can take magnet and screw holes; magnets thicken the floor to fit 6 × 2 mm discs. |
 | **Organizers** | Solid block with cylindrical holes drilled from the top. Built-in presets for metric drill bits, router shanks (metric and imperial), and batteries. Also accepts a custom diameter list. |
 | **Screw Organizer** | Divided bin with optional back-tilt wedge per compartment — screws roll to the front by gravity. Per-column embossed or engraved labels. |
 | **Parts Tray** | Solid block with a configurable grid of circular or square pockets — great for tokens, coins, small electronics, or foam-insert-style storage. |
@@ -42,8 +42,10 @@ Every parameter change rebuilds the mesh in real time using Manifold, a high-per
 ### Labels (on Bins and Screw Organizers)
 - **Paper pocket** — recessed slot on the front wall for a label-tape strip.
 - **Clip tab** — slot at the stacking-lip level for community-standard swap labels.
-- **Embossed text** — text raised from the front face as real geometry.
+- **Embossed text** — raised text in a recessed field on the front face, finishing flush with the wall so bins still sit tight against their neighbours.
 - **Engraved text** — text cut into the front face.
+
+Label depth is capped so at least 0.4 mm of wall always remains behind the text.
 
 ### Gridfinity Spec Compliance
 The default grid is exactly 42 mm × 7 mm — compatible with any stock Gridfinity bin and baseplate. The grid unit and height unit are both adjustable; all dimensions (base profile, clearance, magnet inset, stacking lip) scale proportionally. A badge appears in the sidebar if you deviate from spec.
@@ -60,8 +62,8 @@ Save any design to a local library, grouped by model type. Export the whole libr
 ### Share by URL
 The entire design — every parameter — is encoded into the URL. Copying the address bar gives you a shareable link that reconstructs the exact design.
 
-### Works Offline
-Gridsmith is a Progressive Web App. After your first visit it works without an internet connection and can be installed to your home screen or desktop.
+### Installable
+Gridsmith ships a web app manifest, so it can be installed to your home screen or desktop. It needs a connection to load; once loaded, all design and export work happens locally.
 
 ### Undo / Redo
 Full 50-step undo/redo history with `Ctrl+Z` / `Ctrl+Shift+Z` keyboard shortcuts. Rapid slider drags are coalesced into a single undo step.
