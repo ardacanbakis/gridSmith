@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useStore } from 'zustand';
 import {
+  Check,
   ChevronDown,
   Columns2,
   Download,
@@ -150,13 +151,23 @@ export function Header({ onExport, exporting, onOpenLibrary, onOpenWelcome, onOp
     }
   };
 
+  const [linkCopied, setLinkCopied] = useState(false);
+  const copiedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (copiedTimer.current) clearTimeout(copiedTimer.current);
+  }, []);
+
   const onShare = async () => {
     const url = shareableUrl(design);
     try {
       await navigator.clipboard.writeText(url);
     } catch {
       window.prompt('Copy share link', url);
+      return;
     }
+    setLinkCopied(true);
+    if (copiedTimer.current) clearTimeout(copiedTimer.current);
+    copiedTimer.current = setTimeout(() => setLinkCopied(false), 1800);
   };
 
   const grouped = PRINTERS.reduce<Record<string, typeof PRINTERS[number][]>>((acc, p) => {
@@ -322,8 +333,12 @@ export function Header({ onExport, exporting, onOpenLibrary, onOpenWelcome, onOp
           <FolderOpen size={16} />
         </IconButton>
 
-        <IconButton title={t('header.copyShareLink')} onClick={onShare}>
-          <Share2 size={16} />
+        <IconButton
+          title={linkCopied ? t('header.linkCopied') : t('header.copyShareLink')}
+          active={linkCopied}
+          onClick={onShare}
+        >
+          {linkCopied ? <Check size={16} /> : <Share2 size={16} />}
         </IconButton>
 
         <div ref={exportRef} className="relative flex">

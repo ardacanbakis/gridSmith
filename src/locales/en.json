@@ -22,6 +22,7 @@
     "themeLight": "Switch to light theme",
     "savedDesigns": "Saved designs",
     "copyShareLink": "Copy share link",
+    "linkCopied": "Link copied to clipboard",
     "export": "Export",
     "exporting": "Exporting…",
     "pickFormat": "Pick export format"

@@ -12,7 +12,7 @@ import { WelcomeScreen, useWelcomeScreen } from './components/WelcomeScreen';
 import { useDesignStore } from './store/designStore';
 import { useViewportStore } from './store/viewportStore';
 import { getWorker } from './lib/geometry/workerClient';
-import type { Bbox, BuildStats, ExportFormat, MeshData } from './lib/geometry/types';
+import type { Bbox, BuildStats, ExportFormat, GeometryRequest, MeshData } from './lib/geometry/types';
 import { downloadBlob } from './lib/geometry/stl';
 
 export default function App() {
@@ -34,39 +34,45 @@ export default function App() {
   const [libraryOpen, setLibraryOpen] = useState(false);
   const [templateOpen, setTemplateOpen] = useState(false);
   const [shortcutOpen, setShortcutOpen] = useState(false);
-  const buildSeq = useRef(0);
+  const pendingBuild = useRef<GeometryRequest | null>(null);
+  const buildLoopRunning = useRef(false);
   const firstBuild = useRef(true);
 
   useEffect(() => {
-    const seq = ++buildSeq.current;
+    pendingBuild.current = { model: design.model, spec: design.spec };
+    if (buildLoopRunning.current) return;
+    buildLoopRunning.current = true;
     setBuilding(true);
-    setError(null);
 
-    getWorker()
-      .build({ model: design.model, spec: design.spec })
-      .then((res) => {
-        if (seq !== buildSeq.current) return;
-        if (res.ok) {
-          setMesh(res.mesh);
-          setBbox(res.bbox);
-          setStats(res.stats ?? null);
-          if (firstBuild.current) {
-            firstBuild.current = false;
-            // Defer one frame so Bounds has the new mesh registered.
-            requestAnimationFrame(() => fit());
+    // Latest-wins: one build at a time, and edits that land mid-build replace
+    // whatever was queued — a slider drag never piles up stale rebuilds.
+    void (async () => {
+      while (pendingBuild.current) {
+        const request = pendingBuild.current;
+        pendingBuild.current = null;
+        try {
+          const res = await getWorker().build(request);
+          if (res.ok) {
+            setMesh(res.mesh);
+            setBbox(res.bbox);
+            setStats(res.stats ?? null);
+            setError(null);
+            if (firstBuild.current) {
+              firstBuild.current = false;
+              // Defer one frame so Bounds has the new mesh registered.
+              requestAnimationFrame(() => fit());
+            }
+          } else if (!pendingBuild.current) {
+            setError(res.error);
           }
-        } else {
-          setError(res.error);
+        } catch (err) {
+          if (!pendingBuild.current) setError(err instanceof Error ? err.message : String(err));
         }
-      })
-      .catch((err) => {
-        if (seq !== buildSeq.current) return;
-        setError(err instanceof Error ? err.message : String(err));
-      })
-      .finally(() => {
-        if (seq === buildSeq.current) setBuilding(false);
-      });
-  }, [design.model, design.spec]);
+      }
+      buildLoopRunning.current = false;
+      setBuilding(false);
+    })();
+  }, [design.model, design.spec, fit]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

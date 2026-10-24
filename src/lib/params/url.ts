@@ -26,12 +26,23 @@ export function readDesignFromUrl(): Design | null {
   return decodeDesign(encoded);
 }
 
+const URL_WRITE_DELAY_MS = 250;
+let pendingWrite: ReturnType<typeof setTimeout> | null = null;
+
+/**
+ * Mirror the design into the address bar. Debounced: browsers rate-limit
+ * history.replaceState (Safari throws past 100 calls / 30 s) and a single
+ * slider drag fires far more updates than that.
+ */
 export function writeDesignToUrl(design: Design): void {
   if (typeof window === 'undefined') return;
-  const params = new URLSearchParams(window.location.search);
-  params.set(PARAM_KEY, encodeDesign(design));
-  const url = `${window.location.pathname}?${params.toString()}`;
-  window.history.replaceState(null, '', url);
+  if (pendingWrite) clearTimeout(pendingWrite);
+  pendingWrite = setTimeout(() => {
+    pendingWrite = null;
+    const params = new URLSearchParams(window.location.search);
+    params.set(PARAM_KEY, encodeDesign(design));
+    window.history.replaceState(null, '', `${window.location.pathname}?${params.toString()}`);
+  }, URL_WRITE_DELAY_MS);
 }
 
 export function shareableUrl(design: Design): string {
