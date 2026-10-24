@@ -49,12 +49,12 @@ describe('buildSpec at standard 42mm/7mm', () => {
     expect(spec.baseProfile.totalHeight).toBeCloseTo(4.75);
   });
 
-  it('magnet diameter is 6.0 mm', () => {
-    expect(spec.magnet.diameter).toBeCloseTo(6.0);
+  it('magnet hole diameter is 6.5 mm (6 mm magnet + press-fit clearance)', () => {
+    expect(spec.magnet.diameter).toBeCloseTo(6.5);
   });
 
-  it('magnet depth is 2.0 mm', () => {
-    expect(spec.magnet.depth).toBeCloseTo(2.0);
+  it('magnet hole depth is 2.4 mm (2 mm magnet + clearance)', () => {
+    expect(spec.magnet.depth).toBeCloseTo(2.4);
   });
 
   it('magnet inset from center is 13.0 mm', () => {
@@ -105,8 +105,8 @@ describe('buildSpec scaling — 84 mm grid (2× standard)', () => {
   });
 
   it('magnet and screw diameters are absolute (not scaled)', () => {
-    expect(spec.magnet.diameter).toBeCloseTo(6.0);
-    expect(spec.magnet.depth).toBeCloseTo(2.0);
+    expect(spec.magnet.diameter).toBeCloseTo(6.5);
+    expect(spec.magnet.depth).toBeCloseTo(2.4);
     expect(spec.screw.diameter).toBeCloseTo(3.0);
   });
 });

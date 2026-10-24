@@ -14,6 +14,7 @@ import {
   type Units,
 } from '@/lib/params/schema';
 import { STANDARD, isStandardSpec } from '@/lib/gridfinity/spec';
+import { LABEL_SKIN } from '@/lib/gridfinity/primitives';
 import { BIT_SETS } from '@/lib/gridfinity/bitSets';
 import { fmtLength } from '@/lib/units';
 
@@ -246,6 +247,18 @@ function SegmentedControl<T extends string>({
         </button>
       ))}
     </div>
+  );
+}
+
+/** Shown when a label is deeper than the wall allows; the geometry caps it to keep a skin. */
+function LabelDepthNote({ depth, wall, units }: { depth: number; wall: number; units: Units }) {
+  const cap = Math.max(0, wall - LABEL_SKIN);
+  if (depth <= cap + 1e-9) return null;
+  return (
+    <p className="text-xs text-warn leading-snug">
+      Capped at {fmtLength(cap, units, 2)} so {fmtLength(LABEL_SKIN, units, 1)} of wall stays behind the label.
+      Thicken the wall to go deeper.
+    </p>
   );
 }
 
@@ -709,6 +722,7 @@ export function ParameterPanel({ mode = 'all', side = 'left' }: Props) {
                       onChange={(v) => setModel(ScrewOrganizerParamsSchema.parse({ ...model, labelDepth: v }))}
                       format={len(2)}
                     />
+                    <LabelDepthNote depth={model.labelDepth} wall={model.wallThickness} units={units} />
                   </>
                 )}
               </Section>
@@ -767,6 +781,7 @@ export function ParameterPanel({ mode = 'all', side = 'left' }: Props) {
                       }
                       format={len(2)}
                     />
+                    <LabelDepthNote depth={model.compartmentLabelDepth} wall={model.wallThickness} units={units} />
                     <p className="text-xs text-text-dim leading-snug">
                       One label per column on the front face. Use Auto-fill for common screw size
                       sets.
@@ -1061,7 +1076,7 @@ export function ParameterPanel({ mode = 'all', side = 'left' }: Props) {
             {showFinish && (
               <Section title="Fit" defaultOpen={true}>
                 <NumberField
-                  label="Wall thickness"
+                  label="Bin wall thickness"
                   value={model.wallThickness}
                   min={0.8}
                   max={4}
@@ -1079,7 +1094,8 @@ export function ParameterPanel({ mode = 'all', side = 'left' }: Props) {
                   format={(v) => `${v.toFixed(2)} mm`}
                 />
                 <p className="text-xs text-text-dim leading-snug">
-                  Clearance sets the gap between the lid grip and the bin opening. 0.15 mm works for most printers.
+                  Set the wall thickness to match the bin this lid covers. Clearance is the gap between the
+                  grip ring and the bin opening — 0.15 mm works for most printers.
                 </p>
               </Section>
             )}
@@ -1216,6 +1232,9 @@ export function ParameterPanel({ mode = 'all', side = 'left' }: Props) {
                       }
                       format={len(2)}
                     />
+                    {model.hollow && (
+                      <LabelDepthNote depth={model.labelDepth} wall={model.wallThickness} units={units} />
+                    )}
                   </>
                 )}
               </Section>
@@ -1277,6 +1296,7 @@ export function ParameterPanel({ mode = 'all', side = 'left' }: Props) {
                 <Toggle
                   label="Magnet holes"
                   value={model.magnetHoles}
+                  disabled={model.style === 'minimal'}
                   onChange={(v) =>
                     setModel(BaseplateParamsSchema.parse({ ...model, magnetHoles: v }))
                   }
@@ -1284,10 +1304,16 @@ export function ParameterPanel({ mode = 'all', side = 'left' }: Props) {
                 <Toggle
                   label="Screw holes"
                   value={model.screwHoles}
+                  disabled={model.style === 'minimal'}
                   onChange={(v) =>
                     setModel(BaseplateParamsSchema.parse({ ...model, screwHoles: v }))
                   }
                 />
+                <p className="text-xs text-text-dim leading-snug">
+                  {model.style === 'minimal'
+                    ? 'A minimal plate is an open frame — switch to Rigid to add magnet or screw holes.'
+                    : 'Holes are cut into the floor under each pocket. Magnets thicken the floor to fit 6 × 2 mm discs.'}
+                </p>
               </Section>
             )}
           </>

@@ -3,6 +3,9 @@ import type { Spec } from './spec';
 import type { Polygon } from '@/lib/labels/textToPolygons';
 import { buildTextManifold } from '@/lib/labels/emboss';
 
+/** Embed added features this far into the surface they rest on, so unions fuse. */
+const OVERLAP = 0.01;
+
 function roundedSquare(m: ManifoldToplevel, size: number, radius: number) {
   const inner = Math.max(0.01, size - 2 * radius);
   return m.CrossSection.square([inner, inner], true).offset(radius, 'Round');
@@ -51,42 +54,61 @@ export type BaseplateOptions = {
   screwHoles: boolean;
 };
 
+/** Solid floor under the pockets of a rigid baseplate. */
+const RIGID_FLOOR = 1.2;
+/** Material left between a magnet hole and the opposite face. */
+const MAGNET_SKIN = 0.6;
+
+/**
+ * Floor thickness under the pockets. Minimal plates are an open frame (no
+ * floor); rigid plates get a floor, thickened so magnet holes leave a skin.
+ */
+function baseplateFloorHeight(spec: Spec, opts: Pick<BaseplateOptions, 'style' | 'magnetHoles'>): number {
+  if (opts.style !== 'rigid') return 0;
+  return Math.max(RIGID_FLOOR, opts.magnetHoles ? spec.magnet.depth + MAGNET_SKIN : 0);
+}
+
 export function buildBaseplate(m: ManifoldToplevel, spec: Spec, opts: BaseplateOptions): Manifold {
-  const { gridUnit } = spec;
+  const { gridUnit, magnet } = spec;
   const baseH = spec.baseProfile.totalHeight;
   const w = opts.cellsX * gridUnit;
   const d = opts.cellsY * gridUnit;
 
-  const slabHeight = opts.style === 'rigid' ? baseH + 1.2 : baseH;
+  const floorH = baseplateFloorHeight(spec, opts);
+  const slabHeight = floorH + baseH;
   const slab = m.Manifold.cube([w, d, slabHeight], true).translate([0, 0, slabHeight / 2]);
 
-  const pockets = tileGrid(binBaseUnit(m, spec), opts.cellsX, opts.cellsY, gridUnit);
+  const pockets = tileGrid(binBaseUnit(m, spec), opts.cellsX, opts.cellsY, gridUnit)
+    .translate([0, 0, floorH]);
   let result = slab.subtract(pockets);
 
-  if (opts.magnetHoles || opts.screwHoles) {
-    const holes = magnetAndScrewHoles(
-      m,
-      spec,
-      opts.cellsX,
-      opts.cellsY,
-      opts.magnetHoles,
-      opts.screwHoles,
-      slabHeight,
-    );
+  // Holes need a floor to cut into — a minimal plate's pockets go straight through.
+  if (floorH > 0 && (opts.magnetHoles || opts.screwHoles)) {
+    const holes = magnetAndScrewHoles(m, spec, opts.cellsX, opts.cellsY, {
+      magnets: opts.magnetHoles,
+      screws: opts.screwHoles,
+      // Opened from the floor's top face, where the bin's magnets sit.
+      magnetZ: [floorH - magnet.depth, floorH + 0.01],
+      screwZ: [-0.01, floorH + 0.01],
+    });
     if (holes) result = result.subtract(holes);
   }
 
   return result;
 }
 
+/** Magnet and screw holes at the four corner positions of every cell, spanning the given Z ranges. */
 function magnetAndScrewHoles(
   m: ManifoldToplevel,
   spec: Spec,
   cellsX: number,
   cellsY: number,
-  magnets: boolean,
-  screws: boolean,
-  slabHeight: number,
+  opts: {
+    magnets: boolean;
+    screws: boolean;
+    magnetZ: [number, number];
+    screwZ: [number, number];
+  },
 ): Manifold | null {
   const { gridUnit, magnet, screw } = spec;
   const ox = -((cellsX - 1) * gridUnit) / 2;
@@ -97,6 +119,10 @@ function magnetAndScrewHoles(
     [-magnet.insetFromCenter, magnet.insetFromCenter],
     [magnet.insetFromCenter, magnet.insetFromCenter],
   ];
+  const cylinder = (radius: number, [z0, z1]: [number, number], segments: number) =>
+    m.Manifold.cylinder(z1 - z0, radius, -1, segments, false).translate([0, 0, z0]);
+  const magnetCyl = opts.magnets ? cylinder(magnet.diameter / 2, opts.magnetZ, 32) : null;
+  const screwCyl = opts.screws ? cylinder(screw.diameter / 2, opts.screwZ, 24) : null;
 
   let acc: Manifold | null = null;
   for (let y = 0; y < cellsY; y++) {
@@ -104,20 +130,30 @@ function magnetAndScrewHoles(
       const cx = ox + x * gridUnit;
       const cy = oy + y * gridUnit;
       for (const [dx, dy] of offsets) {
-        if (magnets) {
-          const cyl = m.Manifold.cylinder(magnet.depth + 0.01, magnet.diameter / 2, -1, 32, true)
-            .translate([cx + dx, cy + dy, magnet.depth / 2]);
-          acc = acc ? acc.add(cyl) : cyl;
-        }
-        if (screws) {
-          const cyl = m.Manifold.cylinder(slabHeight + 0.01, screw.diameter / 2, -1, 24, true)
-            .translate([cx + dx, cy + dy, slabHeight / 2]);
-          acc = acc ? acc.add(cyl) : cyl;
+        for (const cyl of [magnetCyl, screwCyl]) {
+          if (!cyl) continue;
+          const piece = cyl.translate([cx + dx, cy + dy, 0]);
+          acc = acc ? acc.add(piece) : piece;
         }
       }
     }
   }
   return acc;
+}
+
+/** Holes opened from a part's underside, through the bin foot. */
+function footHoles(
+  m: ManifoldToplevel,
+  spec: Spec,
+  opts: { cellsX: number; cellsY: number; magnetHoles: boolean; screwHoles: boolean },
+): Manifold | null {
+  if (!opts.magnetHoles && !opts.screwHoles) return null;
+  return magnetAndScrewHoles(m, spec, opts.cellsX, opts.cellsY, {
+    magnets: opts.magnetHoles,
+    screws: opts.screwHoles,
+    magnetZ: [-0.01, spec.magnet.depth],
+    screwZ: [-0.01, spec.baseProfile.totalHeight],
+  });
 }
 
 export type LabelStyle = 'none' | 'paperPocket' | 'clipTab' | 'embossText' | 'engraveText';
@@ -189,14 +225,17 @@ export function buildBin(m: ManifoldToplevel, spec: Spec, opts: BinOptions): Man
       );
       if (ramp) bin = bin.add(ramp);
     }
+  }
 
-    if (opts.labelStyle === 'paperPocket') {
-      bin = addPaperPocket(m, bin, outerW, outerD, opts.wallThickness, totalH);
-    } else if (opts.labelStyle === 'clipTab') {
-      bin = addClipTabSlot(m, bin, outerW, outerD, opts.wallThickness, totalH);
-    } else if ((opts.labelStyle === 'embossText' || opts.labelStyle === 'engraveText') && opts.labelText) {
-      bin = applyTextLabel(m, bin, outerD, totalH, opts.labelStyle === 'engraveText', opts.labelText);
-    }
+  // A solid bin has no cavity to break into, so labels may cut a little deeper.
+  const labelWall = opts.hollow ? opts.wallThickness : Math.max(opts.wallThickness, SOLID_LABEL_WALL);
+  if (opts.labelStyle === 'paperPocket') {
+    bin = addPaperPocket(m, bin, outerW, outerD, labelWall, totalH);
+  } else if (opts.labelStyle === 'clipTab') {
+    bin = addClipTabSlot(m, bin, outerW, outerD, labelWall, totalH);
+  } else if ((opts.labelStyle === 'embossText' || opts.labelStyle === 'engraveText') && opts.labelText) {
+    const face = { outerW, outerD, wall: labelWall, baseH, totalH };
+    bin = applyTextLabel(m, bin, face, opts.labelStyle === 'engraveText', opts.labelText);
   }
 
   if (opts.stackingLip) {
@@ -209,18 +248,8 @@ export function buildBin(m: ManifoldToplevel, spec: Spec, opts: BinOptions): Man
     bin = bin.add(lipOuter.subtract(lipInner));
   }
 
-  if (opts.magnetHoles || opts.screwHoles) {
-    const holes = magnetAndScrewHoles(
-      m,
-      spec,
-      opts.cellsX,
-      opts.cellsY,
-      opts.magnetHoles,
-      opts.screwHoles,
-      baseH,
-    );
-    if (holes) bin = bin.subtract(holes);
-  }
+  const mountHoles = footHoles(m, spec, opts);
+  if (mountHoles) bin = bin.subtract(mountHoles);
 
   return bin;
 }
@@ -251,8 +280,9 @@ function buildCavities(
     for (let i = 0; i < divX; i++) {
       const cx = startX + i * (cellW + wall);
       const cy = startY + j * (cellD + wall);
+      // Floor exactly at floorZ; overshoots the top by 0.1 for a clean cut.
       const cavity = m.Manifold.cube([cellW, cellD, cavityH + 0.1], true)
-        .translate([cx, cy, floorZ + cavityH / 2]);
+        .translate([cx, cy, floorZ + (cavityH + 0.1) / 2]);
       acc = acc ? acc.add(cavity) : cavity;
     }
   }
@@ -260,9 +290,9 @@ function buildCavities(
 }
 
 /**
- * Triangular ramp at the +Y wall of each compartment — easier to scoop small
- * parts out. Ramp height = min(cavity height, 15 mm); ramp depth = 20 mm or
- * until it hits the back wall.
+ * Triangular ramp against the front (-Y) wall of each front-row compartment —
+ * easier to scoop small parts out. Ramp height = min(cavity height, 15 mm);
+ * ramp depth = 20 mm or 70% of the compartment.
  */
 function buildScoopRamp(
   m: ManifoldToplevel,
@@ -286,10 +316,13 @@ function buildScoopRamp(
 
   const frontCellY = -innerD / 2 + cellD / 2;
 
+  // Sunk OVERLAP into the floor and front wall so the union always fuses.
   const polys: [number, number][][] = [[
-    [0, 0],
+    [-OVERLAP, -OVERLAP],
+    [rampDepth, -OVERLAP],
     [rampDepth, 0],
     [0, rampHeight],
+    [-OVERLAP, rampHeight],
   ]];
   const triCross = m.CrossSection.ofPolygons(polys);
   const ramp = triCross.extrude(cellW);
@@ -408,22 +441,19 @@ export function buildScrewOrganizer(
     if (wedges) bin = bin.add(wedges);
   }
 
+  const face = { outerW, outerD, wall, baseH, totalH };
   if (opts.labelStyle === 'paperPocket') {
     bin = addPaperPocket(m, bin, outerW, outerD, wall, totalH);
   } else if (opts.labelStyle === 'clipTab') {
     bin = addClipTabSlot(m, bin, outerW, outerD, wall, totalH);
   } else if ((opts.labelStyle === 'embossText' || opts.labelStyle === 'engraveText') && opts.labelText) {
-    bin = applyTextLabel(m, bin, outerD, totalH, opts.labelStyle === 'engraveText', opts.labelText);
+    bin = applyTextLabel(m, bin, face, opts.labelStyle === 'engraveText', opts.labelText);
   }
 
   if (opts.compartmentLabelStyle !== 'none' && opts.compartmentLabelPolygons) {
-    bin = applyCompartmentLabels(m, bin, {
+    bin = applyCompartmentLabels(m, bin, face, {
       polygonsPerCol: opts.compartmentLabelPolygons,
       cols: opts.cols,
-      outerW,
-      outerD,
-      wall,
-      totalH,
       depth: opts.compartmentLabelDepth,
       engrave: opts.compartmentLabelStyle === 'engrave',
     });
@@ -439,81 +469,120 @@ export function buildScrewOrganizer(
     bin = bin.add(lipOuter.subtract(lipInner));
   }
 
-  if (opts.magnetHoles || opts.screwHoles) {
-    const holes = magnetAndScrewHoles(
-      m,
-      spec,
-      opts.cellsX,
-      opts.cellsY,
-      opts.magnetHoles,
-      opts.screwHoles,
-      baseH,
-    );
-    if (holes) bin = bin.subtract(holes);
-  }
+  const mountHoles = footHoles(m, spec, opts);
+  if (mountHoles) bin = bin.subtract(mountHoles);
 
   return bin;
 }
 
+/** Wall left behind engraved text, or behind the recessed field of embossed text. */
+export const LABEL_SKIN = 0.4;
+/** Effective wall depth used to size labels on solid (non-hollow) bins. */
+const SOLID_LABEL_WALL = 3;
+/** Border of the recessed field around embossed text. */
+const EMBOSS_FIELD_MARGIN = 1.0;
+
 /**
- * Place embossed (added) or engraved (subtracted) text on the front (-Y) wall
- * of a bin. Text is built in XY then rotated so its plane normal points -Y,
- * then translated to sit on the front face, vertically centred.
+ * Put text on the front (-Y) face of a part, centred at (cx, cz).
+ *
+ * Engraved text is cut `depth` into the wall. Embossed text stands up from a
+ * recessed field of the same depth, so its face ends flush with the wall: the
+ * part keeps its Gridfinity footprint and still fits against the bin in front.
+ * Depth is capped so a skin always remains between the text and the cavity.
  */
+function applyFrontText(
+  m: ManifoldToplevel,
+  part: Manifold,
+  args: {
+    polygons: ReadonlyArray<Polygon>;
+    depth: number;
+    engrave: boolean;
+    wall: number;
+    frontY: number;
+    cx: number;
+    cz: number;
+    /** Limits of the emboss field, so it never cuts into side walls, dividers, or the lip. */
+    field: { maxW: number; zMin: number; zMax: number };
+  },
+): Manifold {
+  const depth = Math.min(args.depth, args.wall - LABEL_SKIN);
+  if (depth <= 0.05) return part;
+  const eps = 0.01;
+  const block = buildTextManifold(m, { polygons: args.polygons, depth: depth + eps });
+  if (!block) return part;
+
+  // +90° about X keeps the text readable from the front and turns its
+  // extrusion toward -Y; the translate puts it at y ∈ [frontY − eps, frontY + depth].
+  const text = block.rotate([90, 0, 0]).translate([args.cx, args.frontY + depth, args.cz]);
+  if (args.engrave) return part.subtract(text);
+
+  const bb = text.boundingBox();
+  const fieldW = Math.min(bb.max[0] - bb.min[0] + 2 * EMBOSS_FIELD_MARGIN, args.field.maxW);
+  const z0 = Math.max(bb.min[2] - EMBOSS_FIELD_MARGIN, args.field.zMin);
+  const z1 = Math.min(bb.max[2] + EMBOSS_FIELD_MARGIN, args.field.zMax);
+  if (fieldW <= 0 || z1 <= z0) return part;
+  const field = m.Manifold.cube([fieldW, depth + eps, z1 - z0], true)
+    .translate([args.cx, args.frontY + (depth - eps) / 2, (z0 + z1) / 2]);
+  // Shift the text back by eps so its face lands exactly on the original wall plane.
+  return part.subtract(field).add(text.translate([0, eps, 0]));
+}
+
+type FrontFace = { outerW: number; outerD: number; wall: number; baseH: number; totalH: number };
+
+/** Embossed or engraved text centred on the front (-Y) wall of a bin. */
 function applyTextLabel(
   m: ManifoldToplevel,
   bin: Manifold,
-  outerD: number,
-  totalH: number,
+  face: FrontFace,
   engrave: boolean,
   text: LabelTextData,
 ): Manifold {
-  const block = buildTextManifold(m, text);
-  if (!block) return bin;
-
-  const oriented = block
-    .rotate([90, 0, 0])
-    .translate([0, -outerD / 2 + (engrave ? text.depth / 2 : -text.depth / 2), totalH / 2]);
-
-  return engrave ? bin.subtract(oriented) : bin.add(oriented);
+  return applyFrontText(m, bin, {
+    polygons: text.polygons,
+    depth: text.depth,
+    engrave,
+    wall: face.wall,
+    frontY: -face.outerD / 2,
+    cx: 0,
+    cz: face.totalH / 2,
+    field: { maxW: face.outerW - 2 * face.wall, zMin: face.baseH, zMax: face.totalH },
+  });
 }
 
 /**
  * Place one text label per column on the front (-Y) wall, centred on each
- * column's X position. Labels are sized by the worker; here we just orient
- * and union/subtract them.
+ * column's X position. Labels are sized by the worker; here we just place them.
  */
 function applyCompartmentLabels(
   m: ManifoldToplevel,
   bin: Manifold,
+  face: FrontFace,
   args: {
     polygonsPerCol: ReadonlyArray<ReadonlyArray<Polygon>>;
     cols: number;
-    outerW: number;
-    outerD: number;
-    wall: number;
-    totalH: number;
     depth: number;
     engrave: boolean;
   },
 ): Manifold {
-  const { polygonsPerCol, cols, outerW, outerD, wall, totalH, depth, engrave } = args;
+  const { outerW, outerD, wall, baseH, totalH } = face;
   const innerW = outerW - 2 * wall;
-  const cellW = (innerW - (cols - 1) * wall) / cols;
+  const cellW = (innerW - (args.cols - 1) * wall) / args.cols;
   const startX = -innerW / 2 + cellW / 2;
-  const z = totalH * 0.55;
 
   let result = bin;
-  for (let i = 0; i < cols; i++) {
-    const polys = polygonsPerCol[i];
+  for (let i = 0; i < args.cols; i++) {
+    const polys = args.polygonsPerCol[i];
     if (!polys || polys.length === 0) continue;
-    const block = buildTextManifold(m, { polygons: polys, depth });
-    if (!block) continue;
-    const cx = startX + i * (cellW + wall);
-    const oriented = block
-      .rotate([90, 0, 0])
-      .translate([cx, -outerD / 2 + (engrave ? depth / 2 : -depth / 2), z]);
-    result = engrave ? result.subtract(oriented) : result.add(oriented);
+    result = applyFrontText(m, result, {
+      polygons: polys,
+      depth: args.depth,
+      engrave: args.engrave,
+      wall,
+      frontY: -outerD / 2,
+      cx: startX + i * (cellW + wall),
+      cz: totalH * 0.55,
+      field: { maxW: cellW, zMin: baseH, zMax: totalH },
+    });
   }
   return result;
 }
@@ -545,10 +614,13 @@ function buildBackTiltWedges(
   const rise = Math.min(Math.tan(tilt) * cellD, cavityH - 0.5);
   if (rise <= 0.2) return null;
 
+  // Sunk OVERLAP below the floor so the union fuses instead of leaving a
+  // separate shell resting on a coplanar face.
   const polys: [number, number][][] = [[
-    [0, 0],
-    [cellD, 0],
+    [0, -OVERLAP],
+    [cellD, -OVERLAP],
     [cellD, rise],
+    [0, 0],
   ]];
   const triCross = m.CrossSection.ofPolygons(polys);
   const wedge = triCross
@@ -650,18 +722,8 @@ export function buildPartsTray(
     result = result.add(lipOuter.subtract(lipInner));
   }
 
-  if (opts.magnetHoles || opts.screwHoles) {
-    const holes = magnetAndScrewHoles(
-      m,
-      spec,
-      opts.cellsX,
-      opts.cellsY,
-      opts.magnetHoles,
-      opts.screwHoles,
-      baseH,
-    );
-    if (holes) result = result.subtract(holes);
-  }
+  const mountHoles = footHoles(m, spec, opts);
+  if (mountHoles) result = result.subtract(mountHoles);
 
   return result;
 }
@@ -694,10 +756,12 @@ export function buildLid(m: ManifoldToplevel, spec: Spec, opts: LidOptions): Man
   const gripH = stackLip.height;
 
   if (gripW > 0.1 && gripD > 0.1 && gripInnerW > 0.1 && gripInnerD > 0.1) {
-    const gripOuter = m.Manifold.cube([gripW, gripD, gripH], true);
-    const gripInner = m.Manifold.cube([gripInnerW, gripInnerD, gripH + 0.1], true);
+    // Rooted OVERLAP into the plate so the ring fuses with it.
+    const ringH = gripH + OVERLAP;
+    const gripOuter = m.Manifold.cube([gripW, gripD, ringH], true);
+    const gripInner = m.Manifold.cube([gripInnerW, gripInnerD, ringH + 0.1], true);
     const grip = gripOuter.subtract(gripInner)
-      .translate([0, 0, plateThick + gripH / 2]);
+      .translate([0, 0, plateThick - OVERLAP + ringH / 2]);
     return plate.add(grip);
   }
 
@@ -818,18 +882,8 @@ export function buildDrillBitHolder(
     result = result.add(lipOuter.subtract(lipInner));
   }
 
-  if (opts.magnetHoles || opts.screwHoles) {
-    const holes = magnetAndScrewHoles(
-      m,
-      spec,
-      opts.cellsX,
-      opts.cellsY,
-      opts.magnetHoles,
-      opts.screwHoles,
-      baseH,
-    );
-    if (holes) result = result.subtract(holes);
-  }
+  const mountHoles = footHoles(m, spec, opts);
+  if (mountHoles) result = result.subtract(mountHoles);
 
   return { result, placed: placed.length, dropped };
 }

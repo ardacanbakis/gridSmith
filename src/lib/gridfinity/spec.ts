@@ -52,7 +52,8 @@ export function buildSpec(gridUnit: number, heightUnit: number): Spec {
       })),
       totalHeight: STANDARD_PROFILE_HEIGHT * s,
     },
-    magnet: { diameter: 6.0, depth: 2.0, insetFromCenter: 13.0 * s },
+    // Hole for a standard 6 × 2 mm disc magnet, with press-fit clearance.
+    magnet: { diameter: 6.5, depth: 2.4, insetFromCenter: 13.0 * s },
     screw: { diameter: 3.0 },
     stackLip: { height: 4.4 * s },
   };
