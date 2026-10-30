@@ -56,6 +56,8 @@ The three mating profiles follow the spec, each swept around a rounded outline s
 - **Baseplate pocket** — 0.7 / 1.8 / 2.15 mm on the full 42 mm cell, leaving 0.25 mm of play per side around the foot.
 - **Stacking lip** — 0.7 / 1.8 / 1.9 mm, mirroring the foot so a stacked bin nests on both chamfers. The knife edge at the top is trimmed to a 0.6 mm flat, a 45° shelf underneath lets it print without support, and internal dividers stop just short of the stacked bin's foot.
 
+Bin walls follow the same outline: vertical corners are rounded to 3.75 mm, and compartment corners are rounded concentric with them so the wall stays the same thickness all the way round.
+
 The geometry test suite checks these fits directly: bins stacked on bins (and on screw organizers), bins in baseplates, and lids on bins.
 
 ### Template Gallery

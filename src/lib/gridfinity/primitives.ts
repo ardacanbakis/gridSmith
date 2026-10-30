@@ -56,6 +56,14 @@ function extendLayers(layers: ReadonlyArray<ProfileLayer>, below: boolean): Prof
   ];
 }
 
+/**
+ * Prism of a part's outline from z0 to z1. Vertical corners are rounded to the
+ * radius of the foot's top, as on spec Gridfinity bins.
+ */
+function outlinePrism(m: ManifoldToplevel, spec: Spec, w: number, d: number, z0: number, z1: number): Manifold {
+  return roundedRect(m, w, d, spec.baseProfile.radius).extrude(z1 - z0).translate([0, 0, z0]);
+}
+
 /** Bin foot for one cell, extended OVERLAP into the body above so the two fuse. */
 export function binBaseUnit(m: ManifoldToplevel, spec: Spec): Manifold {
   const { baseProfile: p, gridUnit, clearance } = spec;
@@ -207,8 +215,7 @@ function buildStackingLip(
   const lipH = lip.height - lip.tip;
   const bottomInset = lip.layers[0].inset;
 
-  const block = m.Manifold.cube([outerW, outerD, lipH + OVERLAP], true)
-    .translate([0, 0, topZ - OVERLAP + (lipH + OVERLAP) / 2]);
+  const block = outlinePrism(m, spec, outerW, outerD, topZ - OVERLAP, topZ + lipH);
   // Overshoots below the block's sunk base and above its trimmed top for a clean cut.
   const cavity = sweptSolid(m, outerW, outerD, lip.radius, [
     { z: -2 * OVERLAP, inset: bottomInset },
@@ -219,8 +226,7 @@ function buildStackingLip(
 
   const shelfH = wall === null ? 0 : bottomInset - wall;
   if (wall !== null && shelfH > 0) {
-    const shelfBlock = m.Manifold.cube([outerW, outerD, shelfH], true)
-      .translate([0, 0, topZ - shelfH / 2]);
+    const shelfBlock = outlinePrism(m, spec, outerW, outerD, topZ - shelfH, topZ);
     const shelfVoid = sweptSolid(m, outerW, outerD, lip.radius, [
       { z: -shelfH - OVERLAP, inset: wall },
       { z: -shelfH, inset: wall },
@@ -247,8 +253,10 @@ function lowerDividers(
   topZ: number,
 ): Manifold {
   const drop = spec.baseProfile.totalHeight - spec.stackLip.height + spec.clearance / 2;
-  const zone = m.Manifold.cube([outerW - 2 * wall, outerD - 2 * wall, drop + 0.1], true)
-    .translate([0, 0, topZ - drop + (drop + 0.1) / 2]);
+  // Follows the cavity's rounded corners so it never thins the walls there.
+  const zone = roundedRect(m, outerW - 2 * wall, outerD - 2 * wall, spec.baseProfile.radius - wall)
+    .extrude(drop + 0.1)
+    .translate([0, 0, topZ - drop]);
   return part.subtract(zone);
 }
 
@@ -285,9 +293,7 @@ export function buildBin(m: ManifoldToplevel, spec: Spec, opts: BinOptions): Man
 
   const baseTiled = tileGrid(binBaseUnit(m, spec), opts.cellsX, opts.cellsY, gridUnit);
 
-  const bodyHeight = totalH - baseH;
-  const body = m.Manifold.cube([outerW, outerD, bodyHeight], true)
-    .translate([0, 0, baseH + bodyHeight / 2]);
+  const body = outlinePrism(m, spec, outerW, outerD, baseH, totalH);
 
   let bin = baseTiled.add(body);
 
@@ -298,6 +304,7 @@ export function buildBin(m: ManifoldToplevel, spec: Spec, opts: BinOptions): Man
 
     const cavities = buildCavities(
       m,
+      spec,
       outerW,
       outerD,
       opts.wallThickness,
@@ -348,11 +355,14 @@ export function buildBin(m: ManifoldToplevel, spec: Spec, opts: BinOptions): Man
 }
 
 /**
- * A grid of rectangular cavities separated by wall-thickness dividers.
+ * A grid of cavities separated by wall-thickness dividers.
  * divX/divY = 1 means a single cavity (no internal dividers).
+ * Compartment corners are rounded concentric with the bin's outer corners, so
+ * the wall keeps its thickness all the way round.
  */
 function buildCavities(
   m: ManifoldToplevel,
+  spec: Spec,
   outerW: number,
   outerD: number,
   wall: number,
@@ -367,15 +377,17 @@ function buildCavities(
   const cellD = (innerD - (divY - 1) * wall) / divY;
   const startX = -innerW / 2 + cellW / 2;
   const startY = -innerD / 2 + cellD / 2;
+  // Floor exactly at floorZ; overshoots the top by 0.1 for a clean cut.
+  const compartment = roundedRect(m, cellW, cellD, spec.baseProfile.radius - wall)
+    .extrude(cavityH + 0.1)
+    .translate([0, 0, floorZ]);
 
   let acc: Manifold | null = null;
   for (let j = 0; j < divY; j++) {
     for (let i = 0; i < divX; i++) {
       const cx = startX + i * (cellW + wall);
       const cy = startY + j * (cellD + wall);
-      // Floor exactly at floorZ; overshoots the top by 0.1 for a clean cut.
-      const cavity = m.Manifold.cube([cellW, cellD, cavityH + 0.1], true)
-        .translate([cx, cy, floorZ + (cavityH + 0.1) / 2]);
+      const cavity = compartment.translate([cx, cy, 0]);
       acc = acc ? acc.add(cavity) : cavity;
     }
   }
@@ -507,16 +519,14 @@ export function buildScrewOrganizer(
   const baseH = baseProfile.totalHeight;
 
   const baseTiled = tileGrid(binBaseUnit(m, spec), opts.cellsX, opts.cellsY, gridUnit);
-  const bodyHeight = totalH - baseH;
-  const body = m.Manifold.cube([outerW, outerD, bodyHeight], true)
-    .translate([0, 0, baseH + bodyHeight / 2]);
+  const body = outlinePrism(m, spec, outerW, outerD, baseH, totalH);
 
   let bin = baseTiled.add(body);
 
   const wall = opts.wallThickness;
   const floorZ = baseH + wall;
   const cavityHeight = totalH - floorZ;
-  const cavities = buildCavities(m, outerW, outerD, wall, floorZ, cavityHeight, opts.cols, opts.rows);
+  const cavities = buildCavities(m, spec, outerW, outerD, wall, floorZ, cavityHeight, opts.cols, opts.rows);
   bin = bin.subtract(cavities);
   if (opts.stackingLip && (opts.cols > 1 || opts.rows > 1)) {
     bin = lowerDividers(m, spec, bin, outerW, outerD, wall, totalH);
@@ -757,9 +767,7 @@ export function buildPartsTray(
   const baseH = baseProfile.totalHeight;
 
   const baseTiled = tileGrid(binBaseUnit(m, spec), opts.cellsX, opts.cellsY, gridUnit);
-  const bodyHeight = totalH - baseH;
-  const body = m.Manifold.cube([outerW, outerD, bodyHeight], true)
-    .translate([0, 0, baseH + bodyHeight / 2]);
+  const body = outlinePrism(m, spec, outerW, outerD, baseH, totalH);
 
   let result = baseTiled.add(body);
 
@@ -833,8 +841,7 @@ export function buildLid(m: ManifoldToplevel, spec: Spec, opts: LidOptions): Man
   const outerW = opts.cellsX * gridUnit - binClearance;
   const outerD = opts.cellsY * gridUnit - binClearance;
 
-  const plate = m.Manifold.cube([outerW, outerD, LID_PLATE], true)
-    .translate([0, 0, LID_PLATE / 2]);
+  const plate = outlinePrism(m, spec, outerW, outerD, 0, LID_PLATE);
 
   // layers[1] is where the lip's straight section starts, above its lower chamfer.
   const straight = lip.layers[1];
@@ -932,9 +939,7 @@ export function buildDrillBitHolder(
   const baseH = baseProfile.totalHeight;
 
   const baseTiled = tileGrid(binBaseUnit(m, spec), opts.cellsX, opts.cellsY, gridUnit);
-  const bodyHeight = totalH - baseH;
-  const body = m.Manifold.cube([outerW, outerD, bodyHeight], true)
-    .translate([0, 0, baseH + bodyHeight / 2]);
+  const body = outlinePrism(m, spec, outerW, outerD, baseH, totalH);
 
   let result = baseTiled.add(body);
 

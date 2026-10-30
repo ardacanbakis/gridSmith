@@ -137,6 +137,37 @@ describe('baseplate', () => {
   });
 });
 
+describe('rounded vertical corners', () => {
+  const R = spec.baseProfile.radius;
+  const outer = 42 - spec.clearance;
+  // Points on the corner's diagonal, `r` from the centre of the corner arc.
+  const arc = outer / 2 - R;
+  const onDiagonal = (r: number, z: number): Vec3 => [arc + r / Math.SQRT2, arc + r / Math.SQRT2, z];
+
+  it('bins are rounded like the foot, with the wall thickness kept round the corner', () => {
+    const wall = 1.2;
+    const bin = buildBin(m, spec, noText(BinParamsSchema.parse({ kind: 'bin', heightUnits: 3, wallThickness: wall })));
+    expect(solidAt(bin, onDiagonal(R + 0.15, 12), 0.1)).toBe(0);
+    expect(solidAt(bin, onDiagonal(R - wall / 2, 12), 0.1)).toBeGreaterThan(0);
+    expect(solidAt(bin, onDiagonal(R - wall - 0.15, 12), 0.1)).toBe(0);
+  });
+
+  it('lowering the dividers under the lip does not thin the corner walls', () => {
+    // A thick wall leaves no shelf under the lip, so nothing would refill a sharp cut.
+    const wall = 3;
+    const bin = buildBin(m, spec, noText(BinParamsSchema.parse({
+      kind: 'bin', heightUnits: 3, wallThickness: wall, divX: 2, divY: 2,
+    })));
+    expect(solidAt(bin, onDiagonal(R - wall / 2, 3 * spec.heightUnit - 0.3), 0.1)).toBeGreaterThan(0);
+  });
+
+  it('the lid plate follows the same outline', () => {
+    const lid = buildLid(m, spec, LidParamsSchema.parse({ kind: 'lid' }));
+    expect(solidAt(lid, onDiagonal(R + 0.15, 0.6), 0.1)).toBe(0);
+    expect(solidAt(lid, onDiagonal(R - 0.3, 0.6), 0.1)).toBeGreaterThan(0);
+  });
+});
+
 describe('bin foot holes', () => {
   it('magnet holes open from the underside and leave the floor intact', () => {
     const p = noText(BinParamsSchema.parse({ kind: 'bin', magnetHoles: true }));
