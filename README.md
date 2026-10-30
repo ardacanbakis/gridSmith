@@ -19,7 +19,7 @@ Every calculation and geometry operation runs inside your browser. Nothing is ev
 | Type | What you get |
 |---|---|
 | **Bin** | Standard Gridfinity bin — set width, depth, and height in grid cells and height units. Add internal dividers, a scoop ramp, labels, and mounting holes. |
-| **Lid** | Snap-on lid that covers any bin — a flat plate with a hollow grip ring that slides into the bin opening. Tune wall thickness and fit clearance for your printer. |
+| **Lid** | Friction-fit lid for any bin with a stacking lip — a flat plate that rests on the lip, with a grip ring that drops into the lip's straight section. Tune the fit clearance for your printer. |
 | **Baseplate** | Plate with the Gridfinity base profile recessed in — minimal (open frame) or rigid (solid floor under the pockets). Rigid plates can take magnet and screw holes; magnets thicken the floor to fit 6 × 2 mm discs. |
 | **Organizers** | Solid block with cylindrical holes drilled from the top. Built-in presets for metric drill bits, router shanks (metric and imperial), and batteries. Also accepts a custom diameter list. |
 | **Screw Organizer** | Divided bin with optional back-tilt wedge per compartment — screws roll to the front by gravity. Per-column embossed or engraved labels. |
@@ -49,6 +49,14 @@ Label depth is capped so at least 0.4 mm of wall always remains behind the text.
 
 ### Gridfinity Spec Compliance
 The default grid is exactly 42 mm × 7 mm — compatible with any stock Gridfinity bin and baseplate. The grid unit and height unit are both adjustable; all dimensions (base profile, clearance, magnet inset, stacking lip) scale proportionally. A badge appears in the sidebar if you deviate from spec.
+
+The three mating profiles follow the spec, each swept around a rounded outline so corner radii stay concentric:
+
+- **Bin foot** — 0.8 mm chamfer, 1.8 mm straight, 2.15 mm chamfer, on a 41.5 mm outline with 3.75 mm corners.
+- **Baseplate pocket** — 0.7 / 1.8 / 2.15 mm on the full 42 mm cell, leaving 0.25 mm of play per side around the foot.
+- **Stacking lip** — 0.7 / 1.8 / 1.9 mm, mirroring the foot so a stacked bin nests on both chamfers. The knife edge at the top is trimmed to a 0.6 mm flat, a 45° shelf underneath lets it print without support, and internal dividers stop just short of the stacked bin's foot.
+
+The geometry test suite checks these fits directly: bins stacked on bins (and on screw organizers), bins in baseplates, and lids on bins.
 
 ### Template Gallery
 A full-screen gallery of 45+ ready-to-use starter designs, grouped into Quick Start, Bins, Lids, Organizers, Trays, and Baseplates. Each card shows a parametric schematic drawn from its actual geometry. Search by name or tag, then click any card to apply it — every parameter remains editable afterward. Open it from the header or press `T`.

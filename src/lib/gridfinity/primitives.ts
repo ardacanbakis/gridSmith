@@ -1,36 +1,66 @@
-import type { ManifoldToplevel, Manifold } from 'manifold-3d';
-import type { Spec } from './spec';
+import type { CrossSection, ManifoldToplevel, Manifold, Vec3 } from 'manifold-3d';
+import type { ProfileLayer, Spec } from './spec';
 import type { Polygon } from '@/lib/labels/textToPolygons';
 import { buildTextManifold } from '@/lib/labels/emboss';
 
 /** Embed added features this far into the surface they rest on, so unions fuse. */
 const OVERLAP = 0.01;
 
-function roundedSquare(m: ManifoldToplevel, size: number, radius: number) {
-  const inner = Math.max(0.01, size - 2 * radius);
-  return m.CrossSection.square([inner, inner], true).offset(radius, 'Round');
+/**
+ * Segments per full circle for every rounded corner. Fixed rather than
+ * radius-dependent so concentric outlines (foot vs. lip, plug vs. lip) put
+ * their vertices at the same angles and nest without chord interference.
+ */
+const CORNER_SEGMENTS = 48;
+
+/** w × d rectangle centred on the origin with corners rounded to `radius` (clamped to fit; ≤ 0 is sharp). */
+function roundedRect(m: ManifoldToplevel, w: number, d: number, radius: number): CrossSection {
+  const r = Math.min(radius, w / 2 - 0.001, d / 2 - 0.001);
+  if (r <= 0.001) return m.CrossSection.square([w, d], true);
+  return m.CrossSection.square([w - 2 * r, d - 2 * r], true).offset(r, 'Round', 2, CORNER_SEGMENTS);
 }
 
 /**
- * Bin base foot — three lofted frustums forming the chamfered Gridfinity profile.
- * Corner radii scale linearly with edge size (sub-mm deviation from spec).
+ * Solid bounded by a profile swept around a w × d outline with corner radius
+ * `radius`. Each layer is that outline inset by `layer.inset`; consecutive
+ * layers are joined by their convex hull, so chamfers are exactly 45° and the
+ * corner radii shrink with the inset just as a true sweep would.
  */
+function sweptSolid(
+  m: ManifoldToplevel,
+  w: number,
+  d: number,
+  radius: number,
+  layers: ReadonlyArray<ProfileLayer>,
+): Manifold {
+  const ring = (l: ProfileLayer): Vec3[] =>
+    roundedRect(m, w - 2 * l.inset, d - 2 * l.inset, radius - l.inset)
+      .toPolygons()
+      .flatMap((poly) => poly.map(([x, y]): Vec3 => [x, y, l.z]));
+  let acc: Manifold | null = null;
+  for (let i = 0; i + 1 < layers.length; i++) {
+    const segment = m.Manifold.hull([...ring(layers[i]), ...ring(layers[i + 1])]);
+    acc = acc ? acc.add(segment) : segment;
+  }
+  return acc!;
+}
+
+/** Copy of `layers` with an OVERLAP-long straight extension past the top (and optionally the bottom) layer. */
+function extendLayers(layers: ReadonlyArray<ProfileLayer>, below: boolean): ProfileLayer[] {
+  const first = layers[0];
+  const last = layers[layers.length - 1];
+  return [
+    ...(below ? [{ z: first.z - OVERLAP, inset: first.inset }] : []),
+    ...layers,
+    { z: last.z + OVERLAP, inset: last.inset },
+  ];
+}
+
+/** Bin foot for one cell, extended OVERLAP into the body above so the two fuse. */
 export function binBaseUnit(m: ManifoldToplevel, spec: Spec): Manifold {
-  const [l0, l1, l2, l3] = spec.baseProfile.layers;
-
-  const cs0 = roundedSquare(m, l0.size, l0.radius);
-  const cs1 = roundedSquare(m, l1.size, l1.radius);
-  const cs2 = roundedSquare(m, l2.size, l2.radius);
-  const cs3 = roundedSquare(m, l3.size, l3.radius);
-
-  const chamferLower = cs0.extrude(l1.z - l0.z, 0, 0, [l1.size / l0.size, l1.size / l0.size]);
-  const middle = cs1.extrude(l2.z - l1.z).translate([0, 0, l1.z]);
-  const chamferUpper = cs2
-    .extrude(l3.z - l2.z, 0, 0, [l3.size / l2.size, l3.size / l2.size])
-    .translate([0, 0, l2.z]);
-  const capSkin = cs3.extrude(0.0001).translate([0, 0, l3.z]);
-
-  return chamferLower.add(middle).add(chamferUpper).add(capSkin);
+  const { baseProfile: p, gridUnit, clearance } = spec;
+  const size = gridUnit - clearance;
+  return sweptSolid(m, size, size, p.radius, extendLayers(p.layers, false));
 }
 
 function tileGrid(unit: Manifold, cellsX: number, cellsY: number, gridUnit: number): Manifold {
@@ -69,17 +99,19 @@ function baseplateFloorHeight(spec: Spec, opts: Pick<BaseplateOptions, 'style' |
 }
 
 export function buildBaseplate(m: ManifoldToplevel, spec: Spec, opts: BaseplateOptions): Manifold {
-  const { gridUnit, magnet } = spec;
-  const baseH = spec.baseProfile.totalHeight;
+  const { gridUnit, magnet, baseplateProfile: p } = spec;
   const w = opts.cellsX * gridUnit;
   const d = opts.cellsY * gridUnit;
 
   const floorH = baseplateFloorHeight(spec, opts);
-  const slabHeight = floorH + baseH;
-  const slab = m.Manifold.cube([w, d, slabHeight], true).translate([0, 0, slabHeight / 2]);
+  const slabHeight = floorH + p.totalHeight;
+  // Rounded like the pockets, so the outer rim finishes as the same ridge as between cells.
+  const slab = roundedRect(m, w, d, p.radius).extrude(slabHeight);
 
-  const pockets = tileGrid(binBaseUnit(m, spec), opts.cellsX, opts.cellsY, gridUnit)
-    .translate([0, 0, floorH]);
+  // Pockets use the baseplate profile (looser than the foot) swept around the
+  // full cell. They overshoot the top, and the bottom too when there's no floor.
+  const pocket = sweptSolid(m, gridUnit, gridUnit, p.radius, extendLayers(p.layers, floorH === 0));
+  const pockets = tileGrid(pocket, opts.cellsX, opts.cellsY, gridUnit).translate([0, 0, floorH]);
   let result = slab.subtract(pockets);
 
   // Holes need a floor to cut into — a minimal plate's pockets go straight through.
@@ -156,6 +188,70 @@ function footHoles(
   });
 }
 
+/**
+ * Stacking lip for a part whose body ends at z = topZ. Its inner face follows
+ * the spec lip profile, so the foot of the bin stacked above nests on both
+ * chamfers. On hollow parts (`wall` given) a 45° shelf under the lip carries
+ * its overhang back out to the wall, so it prints without support.
+ */
+function buildStackingLip(
+  m: ManifoldToplevel,
+  spec: Spec,
+  outerW: number,
+  outerD: number,
+  topZ: number,
+  wall: number | null,
+): Manifold {
+  const lip = spec.stackLip;
+  // The top chamfer is 45°, so trimming the knife edge to a `tip`-wide flat lowers it by `tip`.
+  const lipH = lip.height - lip.tip;
+  const bottomInset = lip.layers[0].inset;
+
+  const block = m.Manifold.cube([outerW, outerD, lipH + OVERLAP], true)
+    .translate([0, 0, topZ - OVERLAP + (lipH + OVERLAP) / 2]);
+  // Overshoots below the block's sunk base and above its trimmed top for a clean cut.
+  const cavity = sweptSolid(m, outerW, outerD, lip.radius, [
+    { z: -2 * OVERLAP, inset: bottomInset },
+    ...lip.layers,
+    { z: lip.height + OVERLAP, inset: 0 },
+  ]).translate([0, 0, topZ]);
+  let result = block.subtract(cavity);
+
+  const shelfH = wall === null ? 0 : bottomInset - wall;
+  if (wall !== null && shelfH > 0) {
+    const shelfBlock = m.Manifold.cube([outerW, outerD, shelfH], true)
+      .translate([0, 0, topZ - shelfH / 2]);
+    const shelfVoid = sweptSolid(m, outerW, outerD, lip.radius, [
+      { z: -shelfH - OVERLAP, inset: wall },
+      { z: -shelfH, inset: wall },
+      { z: 0, inset: bottomInset },
+      { z: OVERLAP, inset: bottomInset },
+    ]).translate([0, 0, topZ]);
+    result = result.add(shelfBlock.subtract(shelfVoid));
+  }
+  return result;
+}
+
+/**
+ * Removes the top of the internal dividers so the foot of a bin stacked on
+ * top — which dips below the lip by (foot height − lip height) — clears them,
+ * with half the usual bin clearance to spare.
+ */
+function lowerDividers(
+  m: ManifoldToplevel,
+  spec: Spec,
+  part: Manifold,
+  outerW: number,
+  outerD: number,
+  wall: number,
+  topZ: number,
+): Manifold {
+  const drop = spec.baseProfile.totalHeight - spec.stackLip.height + spec.clearance / 2;
+  const zone = m.Manifold.cube([outerW - 2 * wall, outerD - 2 * wall, drop + 0.1], true)
+    .translate([0, 0, topZ - drop + (drop + 0.1) / 2]);
+  return part.subtract(zone);
+}
+
 export type LabelStyle = 'none' | 'paperPocket' | 'clipTab' | 'embossText' | 'engraveText';
 
 export type LabelTextData = {
@@ -181,7 +277,7 @@ export type BinOptions = {
 };
 
 export function buildBin(m: ManifoldToplevel, spec: Spec, opts: BinOptions): Manifold {
-  const { gridUnit, clearance, heightUnit, baseProfile, stackLip } = spec;
+  const { gridUnit, clearance, heightUnit, baseProfile } = spec;
   const outerW = opts.cellsX * gridUnit - clearance;
   const outerD = opts.cellsY * gridUnit - clearance;
   const totalH = opts.heightUnits * heightUnit;
@@ -211,6 +307,9 @@ export function buildBin(m: ManifoldToplevel, spec: Spec, opts: BinOptions): Man
       opts.divY,
     );
     bin = bin.subtract(cavities);
+    if (opts.stackingLip && (opts.divX > 1 || opts.divY > 1)) {
+      bin = lowerDividers(m, spec, bin, outerW, outerD, opts.wallThickness, totalH);
+    }
 
     if (opts.scoopRamp) {
       const ramp = buildScoopRamp(
@@ -239,13 +338,7 @@ export function buildBin(m: ManifoldToplevel, spec: Spec, opts: BinOptions): Man
   }
 
   if (opts.stackingLip) {
-    const lipOuter = m.Manifold.cube([outerW, outerD, stackLip.height], true)
-      .translate([0, 0, totalH + stackLip.height / 2]);
-    const lipInner = m.Manifold.cube(
-      [outerW - 2 * opts.wallThickness, outerD - 2 * opts.wallThickness, stackLip.height + 0.1],
-      true,
-    ).translate([0, 0, totalH + stackLip.height / 2]);
-    bin = bin.add(lipOuter.subtract(lipInner));
+    bin = bin.add(buildStackingLip(m, spec, outerW, outerD, totalH, opts.hollow ? opts.wallThickness : null));
   }
 
   const mountHoles = footHoles(m, spec, opts);
@@ -407,7 +500,7 @@ export function buildScrewOrganizer(
   spec: Spec,
   opts: ScrewOrganizerOptions,
 ): Manifold {
-  const { gridUnit, clearance, heightUnit, baseProfile, stackLip } = spec;
+  const { gridUnit, clearance, heightUnit, baseProfile } = spec;
   const outerW = opts.cellsX * gridUnit - clearance;
   const outerD = opts.cellsY * gridUnit - clearance;
   const totalH = opts.heightUnits * heightUnit;
@@ -425,6 +518,9 @@ export function buildScrewOrganizer(
   const cavityHeight = totalH - floorZ;
   const cavities = buildCavities(m, outerW, outerD, wall, floorZ, cavityHeight, opts.cols, opts.rows);
   bin = bin.subtract(cavities);
+  if (opts.stackingLip && (opts.cols > 1 || opts.rows > 1)) {
+    bin = lowerDividers(m, spec, bin, outerW, outerD, wall, totalH);
+  }
 
   if (opts.tiltDegrees > 0) {
     const wedges = buildBackTiltWedges(
@@ -460,13 +556,7 @@ export function buildScrewOrganizer(
   }
 
   if (opts.stackingLip) {
-    const lipOuter = m.Manifold.cube([outerW, outerD, stackLip.height], true)
-      .translate([0, 0, totalH + stackLip.height / 2]);
-    const lipInner = m.Manifold.cube(
-      [outerW - 2 * wall, outerD - 2 * wall, stackLip.height + 0.1],
-      true,
-    ).translate([0, 0, totalH + stackLip.height / 2]);
-    bin = bin.add(lipOuter.subtract(lipInner));
+    bin = bin.add(buildStackingLip(m, spec, outerW, outerD, totalH, wall));
   }
 
   const mountHoles = footHoles(m, spec, opts);
@@ -660,7 +750,7 @@ export function buildPartsTray(
   spec: Spec,
   opts: PartsTrayOptions,
 ): Manifold {
-  const { gridUnit, clearance: binClearance, heightUnit, baseProfile, stackLip } = spec;
+  const { gridUnit, clearance: binClearance, heightUnit, baseProfile } = spec;
   const outerW = opts.cellsX * gridUnit - binClearance;
   const outerD = opts.cellsY * gridUnit - binClearance;
   const totalH = opts.heightUnits * heightUnit;
@@ -713,13 +803,7 @@ export function buildPartsTray(
   }
 
   if (opts.stackingLip) {
-    const lipOuter = m.Manifold.cube([outerW, outerD, stackLip.height], true)
-      .translate([0, 0, totalH + stackLip.height / 2]);
-    const lipInner = m.Manifold.cube(
-      [outerW - 2.4, outerD - 2.4, stackLip.height + 0.1],
-      true,
-    ).translate([0, 0, totalH + stackLip.height / 2]);
-    result = result.add(lipOuter.subtract(lipInner));
+    result = result.add(buildStackingLip(m, spec, outerW, outerD, totalH, null));
   }
 
   const mountHoles = footHoles(m, spec, opts);
@@ -731,41 +815,39 @@ export function buildPartsTray(
 export type LidOptions = {
   cellsX: number;
   cellsY: number;
+  /** Wall of the grip ring. */
   wallThickness: number;
   lidClearance: number;
 };
 
+/** Thickness of the lid's flat plate. */
+const LID_PLATE = 1.2;
+
 /**
- * Snap-on flat lid. Printed flat-face-down; the grip ring slides inside the
- * target bin's opening. Grip ring outer dims = bin inner dims − 2×clearance.
+ * Flat friction-fit lid for any bin with a stacking lip. Printed plate-down;
+ * flipped over, the plate rests on the lip's top and the grip ring drops into
+ * the lip's straight section, `lidClearance` smaller all round.
  */
 export function buildLid(m: ManifoldToplevel, spec: Spec, opts: LidOptions): Manifold {
-  const { gridUnit, clearance: binClearance, stackLip } = spec;
+  const { gridUnit, clearance: binClearance, stackLip: lip } = spec;
   const outerW = opts.cellsX * gridUnit - binClearance;
   const outerD = opts.cellsY * gridUnit - binClearance;
-  const plateThick = 1.2;
 
-  const plate = m.Manifold.cube([outerW, outerD, plateThick], true)
-    .translate([0, 0, plateThick / 2]);
+  const plate = m.Manifold.cube([outerW, outerD, LID_PLATE], true)
+    .translate([0, 0, LID_PLATE / 2]);
 
-  const gripW = outerW - 2 * opts.wallThickness - 2 * opts.lidClearance;
-  const gripD = outerD - 2 * opts.wallThickness - 2 * opts.lidClearance;
-  const gripWallThick = opts.wallThickness;
-  const gripInnerW = gripW - 2 * gripWallThick;
-  const gripInnerD = gripD - 2 * gripWallThick;
-  const gripH = stackLip.height;
+  // layers[1] is where the lip's straight section starts, above its lower chamfer.
+  const straight = lip.layers[1];
+  const ringH = lip.height - lip.tip - straight.z;
+  const outerInset = straight.inset + opts.lidClearance;
+  const innerInset = outerInset + opts.wallThickness;
+  if (ringH <= 0.1 || outerW - 2 * innerInset <= 0.1 || outerD - 2 * innerInset <= 0.1) return plate;
 
-  if (gripW > 0.1 && gripD > 0.1 && gripInnerW > 0.1 && gripInnerD > 0.1) {
-    // Rooted OVERLAP into the plate so the ring fuses with it.
-    const ringH = gripH + OVERLAP;
-    const gripOuter = m.Manifold.cube([gripW, gripD, ringH], true);
-    const gripInner = m.Manifold.cube([gripInnerW, gripInnerD, ringH + 0.1], true);
-    const grip = gripOuter.subtract(gripInner)
-      .translate([0, 0, plateThick - OVERLAP + ringH / 2]);
-    return plate.add(grip);
-  }
-
-  return plate;
+  const ring = roundedRect(m, outerW - 2 * outerInset, outerD - 2 * outerInset, lip.radius - outerInset)
+    .subtract(roundedRect(m, outerW - 2 * innerInset, outerD - 2 * innerInset, lip.radius - innerInset));
+  // Rooted OVERLAP into the plate so the ring fuses with it.
+  const grip = ring.extrude(ringH + OVERLAP).translate([0, 0, LID_PLATE - OVERLAP]);
+  return plate.add(grip);
 }
 
 export type DrillHole = {
@@ -843,7 +925,7 @@ export function buildDrillBitHolder(
   spec: Spec,
   opts: DrillBitHolderOptions,
 ): { result: Manifold; dropped: number; placed: number } {
-  const { gridUnit, clearance: binClearance, heightUnit, baseProfile, stackLip } = spec;
+  const { gridUnit, clearance: binClearance, heightUnit, baseProfile } = spec;
   const outerW = opts.cellsX * gridUnit - binClearance;
   const outerD = opts.cellsY * gridUnit - binClearance;
   const totalH = opts.heightUnits * heightUnit;
@@ -873,13 +955,7 @@ export function buildDrillBitHolder(
   }
 
   if (opts.stackingLip) {
-    const lipOuter = m.Manifold.cube([outerW, outerD, stackLip.height], true)
-      .translate([0, 0, totalH + stackLip.height / 2]);
-    const lipInner = m.Manifold.cube(
-      [outerW - 2.4, outerD - 2.4, stackLip.height + 0.1],
-      true,
-    ).translate([0, 0, totalH + stackLip.height / 2]);
-    result = result.add(lipOuter.subtract(lipInner));
+    result = result.add(buildStackingLip(m, spec, outerW, outerD, totalH, null));
   }
 
   const mountHoles = footHoles(m, spec, opts);

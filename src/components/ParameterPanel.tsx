@@ -25,7 +25,7 @@ type ModelKind = ReturnType<typeof useDesignStore.getState>['design']['model']['
 
 const MODEL_OPTIONS: Array<{ kind: ModelKind; label: string; description: string; icon: ReactNode }> = [
   { kind: 'bin', label: 'Bin', description: 'Hollow storage bin with dividers & labels', icon: <Box size={16} /> },
-  { kind: 'lid', label: 'Lid', description: 'Snap-on lid that fits over any bin', icon: <PanelTop size={16} /> },
+  { kind: 'lid', label: 'Lid', description: 'Friction-fit lid for any bin with a stacking lip', icon: <PanelTop size={16} /> },
   { kind: 'baseplate', label: 'Plate', description: 'Gridfinity-compatible baseplate', icon: <LayoutGrid size={16} /> },
   { kind: 'drillBitHolder', label: 'Organizers', description: 'Cylindrical holes for tools & batteries', icon: <Archive size={16} /> },
   { kind: 'screwOrganizer', label: 'Screws', description: 'Divided tray with tilt & per-column labels', icon: <Wrench size={16} /> },
@@ -1076,7 +1076,7 @@ export function ParameterPanel({ mode = 'all', side = 'left' }: Props) {
             {showFinish && (
               <Section title="Fit" defaultOpen={true}>
                 <NumberField
-                  label="Bin wall thickness"
+                  label="Grip ring wall"
                   value={model.wallThickness}
                   min={0.8}
                   max={4}
@@ -1094,8 +1094,8 @@ export function ParameterPanel({ mode = 'all', side = 'left' }: Props) {
                   format={(v) => `${v.toFixed(2)} mm`}
                 />
                 <p className="text-xs text-text-dim leading-snug">
-                  Set the wall thickness to match the bin this lid covers. Clearance is the gap between the
-                  grip ring and the bin opening — 0.15 mm works for most printers.
+                  Fits any bin of the same size that has a stacking lip. Clearance is the gap between the
+                  grip ring and the lip — 0.15 mm works for most printers.
                 </p>
               </Section>
             )}

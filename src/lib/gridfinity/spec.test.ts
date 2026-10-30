@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildSpec, isStandardSpec, STANDARD, STANDARD_SPEC } from './spec';
+import { buildSpec, isStandardSpec, STANDARD, STANDARD_SPEC, type SweptProfile } from './spec';
 
 describe('buildSpec at standard 42mm/7mm', () => {
   const spec = buildSpec(42, 7);
@@ -13,36 +13,66 @@ describe('buildSpec at standard 42mm/7mm', () => {
     expect(spec.clearance).toBeCloseTo(0.5);
   });
 
-  it('base profile has exactly four layers', () => {
-    expect(spec.baseProfile.layers).toHaveLength(4);
+  // Each profile is swept around an outline, so a layer's size and corner radius
+  // follow from its inset: size = outline − 2·inset, radius = outline radius − inset.
+  const at = (p: SweptProfile, outline: number, i: number) => ({
+    z: p.layers[i].z,
+    size: outline - 2 * p.layers[i].inset,
+    radius: p.radius - p.layers[i].inset,
   });
 
-  it('layer 0 — floor: z=0.0, size=35.6, radius=1.6', () => {
-    const l = spec.baseProfile.layers[0];
-    expect(l.z).toBeCloseTo(0.0);
-    expect(l.size).toBeCloseTo(35.6);
-    expect(l.radius).toBeCloseTo(1.6);
+  it.each([
+    [0, 0, 35.6, 0.8],
+    [1, 0.8, 37.2, 1.6],
+    [2, 2.6, 37.2, 1.6],
+    [3, 4.75, 41.5, 3.75],
+  ])('bin foot layer %i: z=%f, size=%f, radius=%f', (i, z, size, radius) => {
+    const l = at(spec.baseProfile, 41.5, i);
+    expect(l.z).toBeCloseTo(z);
+    expect(l.size).toBeCloseTo(size);
+    expect(l.radius).toBeCloseTo(radius);
   });
 
-  it('layer 1 — first ramp: z=0.8, size=37.2, radius=2.4', () => {
-    const l = spec.baseProfile.layers[1];
-    expect(l.z).toBeCloseTo(0.8);
-    expect(l.size).toBeCloseTo(37.2);
-    expect(l.radius).toBeCloseTo(2.4);
+  it.each([
+    [0, 0, 36.3, 1.15],
+    [1, 0.7, 37.7, 1.85],
+    [2, 2.5, 37.7, 1.85],
+    [3, 4.65, 42, 4],
+  ])('baseplate pocket layer %i: z=%f, size=%f, radius=%f', (i, z, size, radius) => {
+    const l = at(spec.baseplateProfile, 42, i);
+    expect(l.z).toBeCloseTo(z);
+    expect(l.size).toBeCloseTo(size);
+    expect(l.radius).toBeCloseTo(radius);
   });
 
-  it('layer 2 — vertical: z=2.6, size=37.2, radius=2.4', () => {
-    const l = spec.baseProfile.layers[2];
-    expect(l.z).toBeCloseTo(2.6);
-    expect(l.size).toBeCloseTo(37.2);
-    expect(l.radius).toBeCloseTo(2.4);
+  it('baseplate pocket is 0.25 mm looser per side than the foot at the straight section', () => {
+    expect(at(spec.baseplateProfile, 42, 1).size - at(spec.baseProfile, 41.5, 1).size).toBeCloseTo(0.5);
   });
 
-  it('layer 3 — top chamfer: z=4.75, size=41.5, radius=4.0', () => {
-    const l = spec.baseProfile.layers[3];
-    expect(l.z).toBeCloseTo(4.75);
-    expect(l.size).toBeCloseTo(41.5);
-    expect(l.radius).toBeCloseTo(4.0);
+  it.each([
+    [0, 0, 36.3],
+    [1, 0.7, 37.7],
+    [2, 2.5, 37.7],
+    [3, 4.4, 41.5],
+  ])('stacking lip layer %i: z=%f, opening=%f', (i, z, size) => {
+    const l = at(spec.stackLip, 41.5, i);
+    expect(l.z).toBeCloseTo(z);
+    expect(l.size).toBeCloseTo(size);
+  });
+
+  it('stacking lip chamfers line up with the foot (both chamfers coincide when seated)', () => {
+    // Seated, the foot sits (foot height − lip height) below the lip's base.
+    const sink = spec.baseProfile.totalHeight - spec.stackLip.height;
+    const foot = spec.baseProfile.layers;
+    const lip = spec.stackLip.layers;
+    // Lower chamfer: foot inset at the lip's base equals the lip's bottom inset.
+    expect(foot[0].inset - sink).toBeCloseTo(lip[0].inset);
+    // Upper chamfer: both reach inset 0 at the same height.
+    expect(foot[3].z - sink).toBeCloseTo(lip[3].z);
+  });
+
+  it('stacking lip tip is trimmed to a 0.6 mm flat', () => {
+    expect(spec.stackLip.tip).toBeCloseTo(0.6);
   });
 
   it('base profile total height is 4.75 mm', () => {
@@ -78,18 +108,13 @@ describe('buildSpec scaling — 84 mm grid (2× standard)', () => {
     expect(spec.clearance).toBeCloseTo(0.5 * s);
   });
 
-  it('layer sizes scale linearly', () => {
-    expect(spec.baseProfile.layers[0].size).toBeCloseTo(35.6 * s);
-    expect(spec.baseProfile.layers[3].size).toBeCloseTo(41.5 * s);
-  });
-
-  it('layer z-heights scale linearly', () => {
+  it('profile insets, heights and radii scale linearly', () => {
+    expect(spec.baseProfile.layers[0].inset).toBeCloseTo(2.95 * s);
     expect(spec.baseProfile.layers[3].z).toBeCloseTo(4.75 * s);
-  });
-
-  it('layer radii scale linearly', () => {
-    expect(spec.baseProfile.layers[0].radius).toBeCloseTo(1.6 * s);
-    expect(spec.baseProfile.layers[3].radius).toBeCloseTo(4.0 * s);
+    expect(spec.baseProfile.radius).toBeCloseTo(3.75 * s);
+    expect(spec.baseplateProfile.radius).toBeCloseTo(4 * s);
+    expect(spec.stackLip.layers[0].inset).toBeCloseTo(2.6 * s);
+    expect(spec.stackLip.tip).toBeCloseTo(0.6 * s);
   });
 
   it('base profile total height scales linearly', () => {

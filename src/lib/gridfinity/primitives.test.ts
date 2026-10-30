@@ -93,7 +93,7 @@ describe('every model kind stays one valid body with all options on', () => {
 });
 
 describe('baseplate', () => {
-  const baseH = spec.baseProfile.totalHeight;
+  const baseH = spec.baseplateProfile.totalHeight;
 
   it('rigid style has a solid floor and pockets open at the top', () => {
     const plate = buildBaseplate(m, spec, BaseplateParamsSchema.parse({ kind: 'baseplate', cellsX: 1, cellsY: 1, style: 'rigid' }));
@@ -211,23 +211,86 @@ describe('bin labels', () => {
   });
 });
 
-describe('lid', () => {
-  it('grip ring slides inside the bin stacking lip with the requested clearance', () => {
-    const lidP = LidParamsSchema.parse({ kind: 'lid', cellsX: 2, cellsY: 1, lidClearance: 0.2 });
-    const lid = buildLid(m, spec, lidP);
-    const plateTop = 1.2;
-    const grip = lid.trimByPlane([0, 0, 1], plateTop + 0.01);
-    const gb = grip.boundingBox();
-    const gripW = gb.max[0] - gb.min[0];
+/** Volume where two parts collide; effectively 0 when they only touch or clear. */
+function overlap(a: Manifold, b: Manifold): number {
+  return a.intersect(b).volume();
+}
+const CLEAR = 1e-3;
 
-    const bin = buildBin(m, spec, noText(BinParamsSchema.parse({ kind: 'bin', cellsX: 2, cellsY: 1, wallThickness: lidP.wallThickness })));
-    const binTop = bin.boundingBox().max[2];
-    // Width of the opening at the top of the lip, measured by slicing just below the rim.
-    const rim = bin.trimByPlane([0, 0, 1], binTop - 0.5).trimByPlane([0, 0, -1], -(binTop - 0.4));
-    const slice = rim.slice(binTop - 0.45);
-    const bounds = slice.bounds();
-    const outerW = bounds.max[0] - bounds.min[0];
-    const lipInnerW = outerW - 2 * lidP.wallThickness;
-    expect(gripW).toBeCloseTo(lipInnerW - 2 * lidP.lidClearance, 2);
+describe('fit: parts mate the way Gridfinity parts do', () => {
+  const H = 3;
+  const totalH = H * spec.heightUnit;
+  // Seated, a foot sits this far below the base of the lip it nests in.
+  const sink = spec.baseProfile.totalHeight - spec.stackLip.height;
+  const bin1 = () => buildBin(m, spec, noText(BinParamsSchema.parse({ kind: 'bin', heightUnits: H })));
+
+  it('the lip is trimmed to a flat, 0.6 mm below the nominal 4.4 mm', () => {
+    expect(bin1().boundingBox().max[2]).toBeCloseTo(totalH + 4.4 - 0.6, 4);
+  });
+
+  it.each([
+    ['plain bin', () => bin1()],
+    ['divided bin with a scoop', () =>
+      buildBin(m, spec, noText(BinParamsSchema.parse({ kind: 'bin', heightUnits: H, divX: 3, divY: 2, scoopRamp: true })))],
+    ['thick-walled bin', () =>
+      buildBin(m, spec, noText(BinParamsSchema.parse({ kind: 'bin', heightUnits: H, wallThickness: 2 })))],
+    ['screw organizer at max tilt', () =>
+      buildScrewOrganizer(m, spec, noText(ScrewOrganizerParamsSchema.parse({
+        kind: 'screwOrganizer', cellsX: 1, cellsY: 1, heightUnits: H, cols: 2, rows: 2, tiltDegrees: 20, labelStyle: 'none',
+      })))],
+  ])('a bin seats on both chamfers of a %s', (_, makeLower) => {
+    const lower = makeLower();
+    const upper = bin1();
+    const seat = (dz: number, dx = 0) => upper.translate([dx, 0, totalH - sink + dz]);
+    // Clears everything — lip, shelf, dividers, ramps, wedges — with a hair of air…
+    expect(overlap(lower, seat(0.02))).toBeLessThan(CLEAR);
+    // …and it's the chamfers that carry it: any lower and it collides.
+    expect(overlap(lower, seat(-0.05))).toBeGreaterThan(CLEAR);
+    // Located sideways.
+    expect(overlap(lower, seat(0.02, 0.3))).toBeGreaterThan(CLEAR);
+  });
+
+  it('stacking still nests at a non-standard 30 mm grid', () => {
+    const small = buildSpec(30, 5);
+    const make = () => buildBin(m, small, noText(BinParamsSchema.parse({ kind: 'bin', heightUnits: 4 })));
+    const h = 4 * small.heightUnit;
+    const smallSink = small.baseProfile.totalHeight - small.stackLip.height;
+    const seat = (dz: number) => make().translate([0, 0, h - smallSink + dz]);
+    expect(overlap(make(), seat(0.02))).toBeLessThan(CLEAR);
+    expect(overlap(make(), seat(-0.05))).toBeGreaterThan(CLEAR);
+  });
+
+  it('a bin rests on the solid top of a parts tray, located by its lip', () => {
+    const tray = buildPartsTray(m, spec, PartsTrayParamsSchema.parse({
+      kind: 'partsTray', cellsX: 1, cellsY: 1, heightUnits: H, pocketCols: 1, pocketRows: 1, stackingLip: true,
+    }));
+    const upper = bin1();
+    const rest = (dz: number, dx = 0) => upper.translate([dx, 0, totalH + dz]);
+    expect(overlap(tray, rest(0.02))).toBeLessThan(CLEAR);
+    expect(overlap(tray, rest(0.02, 0.3))).toBeGreaterThan(CLEAR);
+  });
+
+  it.each([[1, 1], [2, 2]])('a %i×%i bin drops into a rigid baseplate with 0.25 mm of play', (cx, cy) => {
+    const plate = buildBaseplate(m, spec, BaseplateParamsSchema.parse({
+      kind: 'baseplate', cellsX: cx, cellsY: cy, style: 'rigid',
+    }));
+    const floorTop = plate.boundingBox().max[2] - spec.baseplateProfile.totalHeight;
+    const bin = buildBin(m, spec, noText(BinParamsSchema.parse({ kind: 'bin', cellsX: cx, cellsY: cy, heightUnits: H })));
+    const place = (dx: number) => bin.translate([dx, 0, floorTop + 0.01]);
+    expect(overlap(plate, place(0))).toBeLessThan(CLEAR);
+    expect(overlap(plate, place(0.2))).toBeLessThan(CLEAR);
+    expect(overlap(plate, place(0.35))).toBeGreaterThan(CLEAR);
+  });
+
+  it('a lid rests on the lip and its grip ring holds it with the requested clearance', () => {
+    const clearance = 0.2;
+    const lid = buildLid(m, spec, LidParamsSchema.parse({ kind: 'lid', cellsX: 2, cellsY: 1, lidClearance: clearance }))
+      .rotate([180, 0, 0]); // printed plate-down; flipped, the plate spans z ∈ [-1.2, 0]
+    const bin = buildBin(m, spec, noText(BinParamsSchema.parse({ kind: 'bin', cellsX: 2, cellsY: 1, heightUnits: H })));
+    const lipTop = bin.boundingBox().max[2];
+    const place = (dx: number) => lid.translate([dx, 0, lipTop + 1.2 + 0.01]);
+    expect(overlap(bin, place(0))).toBeLessThan(CLEAR);
+    expect(overlap(bin, place(clearance - 0.05))).toBeLessThan(CLEAR);
+    expect(overlap(bin, place(clearance + 0.1))).toBeGreaterThan(CLEAR);
   });
 });
