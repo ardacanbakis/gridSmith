@@ -1,9 +1,8 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useStore } from 'zustand';
 import { Header } from './components/Header';
 import { ParameterPanel } from './components/ParameterPanel';
-import { Viewport } from './components/Viewport';
 import { InfoOverlay } from './components/InfoOverlay';
 import { DesignLibraryModal } from './components/DesignLibraryModal';
 import { TemplateGallery } from './components/TemplateGallery';
@@ -15,6 +14,11 @@ import { useMediaQuery } from './lib/useMediaQuery';
 import { getWorker } from './lib/geometry/workerClient';
 import type { Bbox, BuildStats, ExportFormat, GeometryRequest, MeshData } from './lib/geometry/types';
 import { downloadBlob } from './lib/geometry/stl';
+
+// three.js and the React-Three renderer are about two-thirds of the bundle. Loading the
+// viewport as its own chunk lets the rest of the UI render while it downloads, and keeps
+// that chunk cached across deploys that only change app code.
+const Viewport = lazy(() => import('./components/Viewport').then((mod) => ({ default: mod.Viewport })));
 
 export default function App() {
   const { t } = useTranslation();
@@ -150,7 +154,15 @@ export default function App() {
       <div className="flex-1 flex flex-col md:flex-row min-h-0">
         <ParameterPanel mode={duo ? 'core' : 'all'} side="left" />
         <main className="relative min-w-0 order-first h-[42vh] min-h-[240px] shrink-0 md:order-none md:h-auto md:min-h-0 md:shrink md:flex-1">
-          <Viewport mesh={mesh} loading={building} gridUnit={design.spec.gridUnit} />
+          <Suspense
+            fallback={
+              <div className="w-full h-full grid place-items-center bg-bg text-xs text-text-muted">
+                Loading 3D view…
+              </div>
+            }
+          >
+            <Viewport mesh={mesh} loading={building} gridUnit={design.spec.gridUnit} />
+          </Suspense>
           <InfoOverlay bbox={bbox} stats={stats} />
           {stats && stats.droppedHoles !== undefined && stats.droppedHoles > 0 && (
             <div className="absolute top-3 left-1/2 -translate-x-1/2 w-max max-w-[calc(100%-1.5rem)] panel rounded px-3 py-2 text-xs">
