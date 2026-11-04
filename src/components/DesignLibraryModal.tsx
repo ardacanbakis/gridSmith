@@ -223,7 +223,8 @@ export function DesignLibraryModal({ open, onClose }: Props) {
                             >
                               {it.name}
                             </button>
-                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                            {/* Always visible on small (touch) screens; on hover or keyboard focus elsewhere. */}
+                            <div className="flex items-center gap-1 sm:opacity-0 sm:group-hover:opacity-100 focus-within:opacity-100 transition-opacity shrink-0">
                               <button
                                 title={t('library.loadTitle')}
                                 onClick={() => onLoad(it)}

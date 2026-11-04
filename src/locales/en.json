@@ -25,7 +25,10 @@
     "linkCopied": "Link copied to clipboard",
     "export": "Export",
     "exporting": "Exporting…",
-    "pickFormat": "Pick export format"
+    "pickFormat": "Pick export format",
+    "more": "More",
+    "printer": "Printer",
+    "units": "Units"
   },
   "format": {
     "stl": "STL",

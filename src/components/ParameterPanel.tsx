@@ -555,7 +555,12 @@ export function ParameterPanel({ mode = 'all', side = 'left' }: Props) {
 
   return (
     <aside
-      className={`w-72 shrink-0 panel ${side === 'left' ? 'border-r' : 'border-l'} flex flex-col`}
+      className={[
+        'panel flex flex-col min-h-0',
+        // Phones: full width below the viewport, filling what's left. md+: fixed-width side column.
+        'w-full flex-1 border-t md:w-72 md:flex-none md:border-t-0',
+        side === 'left' ? 'md:border-r' : 'md:border-l',
+      ].join(' ')}
     >
       {showCore && (
         <div className="p-3 border-b border-border">

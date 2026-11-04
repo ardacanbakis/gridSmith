@@ -60,7 +60,7 @@ export function InfoOverlay({ bbox, stats }: Props) {
     : null;
 
   return (
-    <div className="absolute bottom-3 left-3 panel rounded-md px-3 py-2 text-xs font-mono leading-tight pointer-events-none">
+    <div className="absolute bottom-2 left-2 md:bottom-3 md:left-3 panel rounded-md px-2 py-1.5 md:px-3 md:py-2 text-[10px] md:text-xs font-mono leading-tight pointer-events-none">
       <div className="text-text">{dimText}</div>
       {content && <div className="text-text-muted">{content}</div>}
       {volumeText && <div className="text-text-dim">{volumeText}</div>}

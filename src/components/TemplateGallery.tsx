@@ -156,7 +156,7 @@ function CategorySidebar({
   onChange: (c: TemplateCategory) => void;
 }) {
   return (
-    <nav className="w-36 shrink-0 border-r border-border overflow-y-auto py-1">
+    <nav className="hidden sm:block w-36 shrink-0 border-r border-border overflow-y-auto py-1">
       {CATEGORIES.map((cat) => {
         const { label, emoji } = CATEGORY_META[cat];
         const isActive = cat === active;
@@ -288,7 +288,7 @@ export function TemplateGallery({ open, onClose }: Props) {
       >
         {/* Header */}
         <div className="flex items-center gap-3 px-4 py-3 border-b border-border shrink-0">
-          <h2 className="text-sm font-semibold">Choose a starter template</h2>
+          <h2 className="hidden sm:block text-sm font-semibold">Choose a starter template</h2>
           <div className="flex-1 relative">
             <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-dim pointer-events-none" />
             <input
@@ -309,6 +309,26 @@ export function TemplateGallery({ open, onClose }: Props) {
           </button>
         </div>
 
+        {/* Phones: categories as a scrolling chip row instead of the sidebar */}
+        <div className="sm:hidden flex gap-1.5 overflow-x-auto px-3 py-2 border-b border-border shrink-0">
+          {CATEGORIES.map((cat) => (
+            <button
+              key={cat}
+              onClick={() => { setActiveCategory(cat); setSearch(''); }}
+              className={[
+                'shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-xs font-medium',
+                cat === activeCategory
+                  ? 'border-accent bg-accent/10 text-accent'
+                  : 'border-border text-text-muted',
+              ].join(' ')}
+            >
+              {CATEGORY_ICONS[cat]}
+              {CATEGORY_META[cat].label}
+              <span className="text-[10px] text-text-dim tabular">{counts[cat]}</span>
+            </button>
+          ))}
+        </div>
+
         {/* Body */}
         <div className="flex flex-1 min-h-0">
           <CategorySidebar
@@ -317,7 +337,7 @@ export function TemplateGallery({ open, onClose }: Props) {
             onChange={(cat) => { setActiveCategory(cat); setSearch(''); }}
           />
 
-          <div className="flex-1 overflow-y-auto p-4">
+          <div className="flex-1 overflow-y-auto p-3 sm:p-4">
             {filtered.length === 0 ? (
               <div className="flex items-center justify-center h-40 text-xs text-text-dim">
                 No templates match your search.

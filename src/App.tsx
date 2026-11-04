@@ -11,6 +11,7 @@ import { ShortcutHelp } from './components/ShortcutHelp';
 import { WelcomeScreen, useWelcomeScreen } from './components/WelcomeScreen';
 import { useDesignStore } from './store/designStore';
 import { useViewportStore } from './store/viewportStore';
+import { useMediaQuery } from './lib/useMediaQuery';
 import { getWorker } from './lib/geometry/workerClient';
 import type { Bbox, BuildStats, ExportFormat, GeometryRequest, MeshData } from './lib/geometry/types';
 import { downloadBlob } from './lib/geometry/stl';
@@ -20,6 +21,9 @@ export default function App() {
   const { showWelcome, dismiss, show: showWelcomeScreen } = useWelcomeScreen();
   const design = useDesignStore((s) => s.design);
   const duoSidebar = useViewportStore((s) => s.duoView);
+  // Two sidebars plus a viewport need laptop width; below that, one sidebar holds everything.
+  const wide = useMediaQuery('(min-width: 1024px)');
+  const duo = duoSidebar && wide;
   const fit = useViewportStore((s) => s.fit);
   const recenter = useViewportStore((s) => s.recenter);
   const undo = useStore(useDesignStore.temporal, (s) => s.undo);
@@ -142,13 +146,14 @@ export default function App() {
         onOpenWelcome={showWelcomeScreen}
         onOpenTemplates={() => setTemplateOpen(true)}
       />
-      <div className="flex-1 flex min-h-0">
-        <ParameterPanel mode={duoSidebar ? 'core' : 'all'} side="left" />
-        <main className="flex-1 relative min-w-0">
+      {/* Phones: viewport on top, parameters scroll below. md and up: side by side. */}
+      <div className="flex-1 flex flex-col md:flex-row min-h-0">
+        <ParameterPanel mode={duo ? 'core' : 'all'} side="left" />
+        <main className="relative min-w-0 order-first h-[42vh] min-h-[240px] shrink-0 md:order-none md:h-auto md:min-h-0 md:shrink md:flex-1">
           <Viewport mesh={mesh} loading={building} gridUnit={design.spec.gridUnit} />
           <InfoOverlay bbox={bbox} stats={stats} />
           {stats && stats.droppedHoles !== undefined && stats.droppedHoles > 0 && (
-            <div className="absolute top-3 left-1/2 -translate-x-1/2 panel rounded px-3 py-2 text-xs">
+            <div className="absolute top-3 left-1/2 -translate-x-1/2 w-max max-w-[calc(100%-1.5rem)] panel rounded px-3 py-2 text-xs">
               <span className="warn-badge mr-2">{t('warning.tooManyBits')}</span>
               <span className="text-text-muted">
                 {t('warning.tooManyBitsDetail', { placed: stats.placedHoles, dropped: stats.droppedHoles })}
@@ -156,12 +161,12 @@ export default function App() {
             </div>
           )}
           {error && (
-            <div className="absolute bottom-3 right-3 panel rounded px-3 py-2 text-xs text-red-400 border border-red-500/40">
+            <div className="absolute bottom-3 right-3 max-w-[calc(100%-1.5rem)] panel rounded px-3 py-2 text-xs text-red-400 border border-red-500/40">
               {error}
             </div>
           )}
         </main>
-        {duoSidebar && <ParameterPanel mode="finish" side="right" />}
+        {duo && <ParameterPanel mode="finish" side="right" />}
       </div>
       <DesignLibraryModal open={libraryOpen} onClose={() => setLibraryOpen(false)} />
     </div>
