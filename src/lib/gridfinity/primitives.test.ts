@@ -18,7 +18,7 @@ import {
   PartsTrayParamsSchema,
   ScrewOrganizerParamsSchema,
 } from '@/lib/params/schema';
-import { bitsForSet } from './bitSets';
+import { holeSetFor } from './bitSets';
 
 const spec = buildSpec(42, 7);
 let m: ManifoldToplevel;
@@ -56,11 +56,11 @@ describe('every model kind builds a valid manifold with default params', () => {
   it('screw organizer', () =>
     expectValid(buildScrewOrganizer(m, spec, noText(ScrewOrganizerParamsSchema.parse({ kind: 'screwOrganizer' })))));
   it('parts tray', () =>
-    expectValid(buildPartsTray(m, spec, PartsTrayParamsSchema.parse({ kind: 'partsTray' }))));
+    expectValid(buildPartsTray(m, spec, PartsTrayParamsSchema.parse({ kind: 'partsTray' })).result));
   it('lid', () => expectValid(buildLid(m, spec, LidParamsSchema.parse({ kind: 'lid' }))));
   it('drill bit holder', () => {
     const p = DrillBitHolderParamsSchema.parse({ kind: 'drillBitHolder' });
-    const { result, placed } = buildDrillBitHolder(m, spec, { ...p, bits: bitsForSet(p.bitSet, p.customBits) });
+    const { result, placed } = buildDrillBitHolder(m, spec, { ...p, holes: holeSetFor(p.bitSet, p.customBits) });
     expectValid(result);
     expect(placed).toBeGreaterThan(0);
   });
@@ -84,11 +84,11 @@ describe('every model kind stays one valid body with all options on', () => {
   it.each(['circle', 'square'] as const)('parts tray (%s pockets)', (pocketShape) =>
     expectValid(buildPartsTray(m, spec, PartsTrayParamsSchema.parse({
       kind: 'partsTray', pocketShape, ...mounts,
-    }))));
+    })).result));
   it('lid (3×2)', () => expectValid(buildLid(m, spec, LidParamsSchema.parse({ kind: 'lid', cellsX: 3, cellsY: 2 }))));
   it('drill bit holder', () => {
     const p = DrillBitHolderParamsSchema.parse({ kind: 'drillBitHolder', bitSet: 'battery-mixed', cellsX: 3, ...mounts });
-    expectValid(buildDrillBitHolder(m, spec, { ...p, bits: bitsForSet(p.bitSet, p.customBits) }).result);
+    expectValid(buildDrillBitHolder(m, spec, { ...p, holes: holeSetFor(p.bitSet, p.customBits) }).result);
   });
 });
 
@@ -165,6 +165,104 @@ describe('rounded vertical corners', () => {
     const lid = buildLid(m, spec, LidParamsSchema.parse({ kind: 'lid' }));
     expect(solidAt(lid, onDiagonal(R + 0.15, 0.6), 0.1)).toBe(0);
     expect(solidAt(lid, onDiagonal(R - 0.3, 0.6), 0.1)).toBeGreaterThan(0);
+  });
+});
+
+describe('pocket trays', () => {
+  const baseH = spec.baseProfile.totalHeight;
+  const make = (o: Record<string, unknown>) =>
+    buildPartsTray(m, spec, PartsTrayParamsSchema.parse({ kind: 'partsTray', cellsX: 1, cellsY: 1, ...o }));
+
+  it('never cuts a pocket into the foot, however deep it is asked to go', () => {
+    const { result } = make({ heightUnits: 2, pocketCols: 1, pocketRows: 1, pocketDepth: 50 });
+    expect(solidAt(result, [0, 0, baseH + 0.5])).toBeGreaterThan(0);
+    expect(solidAt(result, [0, 0, 2 * spec.heightUnit - 0.5])).toBe(0);
+  });
+
+  it('lays pockets out on size + spacing, so spacing actually changes the gap', () => {
+    const { result } = make({
+      heightUnits: 3, pocketShape: 'square', pocketSize: 10, pocketCols: 2, pocketRows: 1, pocketSpacing: 5,
+    });
+    const z = 3 * spec.heightUnit - 1;
+    expect(solidAt(result, [0, 0, z])).toBeGreaterThan(0);
+    expect(solidAt(result, [7.5, 0, z])).toBe(0);
+    expect(solidAt(result, [-7.5, 0, z])).toBe(0);
+    expect(solidAt(result, [13, 0, z])).toBeGreaterThan(0);
+  });
+
+  it('cuts rectangular slots to width and length', () => {
+    const { result } = make({
+      heightUnits: 3, pocketShape: 'square', pocketSize: 24.8, pocketLength: 2.8, cornerRadius: 0.3,
+      pocketCols: 1, pocketRows: 1,
+    });
+    const z = 3 * spec.heightUnit - 1;
+    expect(solidAt(result, [12.2, 0, z], 0.1)).toBe(0);
+    expect(solidAt(result, [12.6, 0, z], 0.1)).toBeGreaterThan(0);
+    expect(solidAt(result, [0, 1.3, z], 0.1)).toBe(0);
+    expect(solidAt(result, [0, 1.55, z], 0.1)).toBeGreaterThan(0);
+  });
+
+  it('rounds the floor into a bowl when asked', () => {
+    const flat = make({ heightUnits: 4, pocketSize: 20, pocketDepth: 15, pocketCols: 1, pocketRows: 1 }).result;
+    const bowl = make({ heightUnits: 4, pocketSize: 20, pocketDepth: 15, pocketCols: 1, pocketRows: 1, roundedBottom: true }).result;
+    const floor = 4 * spec.heightUnit - 15;
+    // Near the wall just above the floor: open in the flat pocket, filled in by the bowl's curve.
+    expect(solidAt(flat, [9, 0, floor + 0.5], 0.1)).toBe(0);
+    expect(solidAt(bowl, [9, 0, floor + 0.5], 0.1)).toBeGreaterThan(0);
+    expect(bowl.decompose()).toHaveLength(1);
+  });
+
+  it('reports pockets that do not fit instead of overlapping them', () => {
+    const { placed, dropped } = make({ heightUnits: 2, pocketSize: 20, pocketCols: 3, pocketRows: 3 });
+    expect(placed).toBe(1);
+    expect(dropped).toBe(8);
+  });
+});
+
+describe('holders', () => {
+  const baseH = spec.baseProfile.totalHeight;
+  const make = (holes: Parameters<typeof buildDrillBitHolder>[2]['holes'], o: Record<string, unknown> = {}, labels?: [number, number][][][]) =>
+    buildDrillBitHolder(m, spec, {
+      ...DrillBitHolderParamsSchema.parse({ kind: 'drillBitHolder', cellsX: 1, cellsY: 1, ...o }),
+      holes,
+      labelPolygons: labels,
+    });
+
+  it('sizes hex holes across flats, with corners on the X axis', () => {
+    const { result } = make({ shape: 'hex', mode: 'set', items: [{ mm: 6, label: '6' }] });
+    const z = 3 * spec.heightUnit - 1;
+    // 6 mm + 2 × 0.1 clearance across flats; corners at 3.1 / cos 30° ≈ 3.58.
+    expect(solidAt(result, [0, 3.0, z], 0.1)).toBe(0);
+    expect(solidAt(result, [0, 3.25, z], 0.1)).toBeGreaterThan(0);
+    expect(solidAt(result, [3.45, 0, z], 0.1)).toBe(0);
+    expect(solidAt(result, [3.75, 0, z], 0.1)).toBeGreaterThan(0);
+  });
+
+  it('never cuts a hole into the foot', () => {
+    const { result } = make({ shape: 'round', mode: 'set', items: [{ mm: 10, label: '10' }] }, { heightUnits: 2, holeDepth: 50 });
+    expect(solidAt(result, [0, 0, baseH + 0.5])).toBeGreaterThan(0);
+  });
+
+  it('engraves each label under its hole', () => {
+    const glyph: [number, number][] = [[-1.5, -1.5], [1.5, -1.5], [1.5, 1.5], [-1.5, 1.5]];
+    const { result, placed } = make(
+      { shape: 'round', mode: 'set', items: [{ mm: 8, label: '8' }] }, {}, [[glyph]],
+    );
+    expect(placed).toBe(1);
+    const top = 3 * spec.heightUnit;
+    // The hole sits above the label strip; find the label just below it.
+    let labelY: number | null = null;
+    for (let y = -15; y < 0; y += 0.25) {
+      if (solidAt(result, [0, y, top - 0.3], 0.1) === 0) { labelY = y; break; }
+    }
+    expect(labelY).not.toBeNull();
+    expect(solidAt(result, [0, labelY!, top - 0.9], 0.1)).toBeGreaterThan(0);
+  });
+
+  it('fills a block with as many of one size as fit', () => {
+    const { placed, dropped } = make({ shape: 'round', mode: 'fill', items: [{ mm: 14.7, label: 'AA' }] }, { cellsX: 2 });
+    expect(placed).toBe(8);
+    expect(dropped).toBe(0);
   });
 });
 
@@ -294,7 +392,7 @@ describe('fit: parts mate the way Gridfinity parts do', () => {
   it('a bin rests on the solid top of a parts tray, located by its lip', () => {
     const tray = buildPartsTray(m, spec, PartsTrayParamsSchema.parse({
       kind: 'partsTray', cellsX: 1, cellsY: 1, heightUnits: H, pocketCols: 1, pocketRows: 1, stackingLip: true,
-    }));
+    })).result;
     const upper = bin1();
     const rest = (dz: number, dx = 0) => upper.translate([dx, 0, totalH + dz]);
     expect(overlap(tray, rest(0.02))).toBeLessThan(CLEAR);

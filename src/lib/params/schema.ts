@@ -12,14 +12,20 @@ export const BitSetIdSchema = z.enum([
   'fractional-inch',
   'letter',
   'number',
+  'hex-metric',
+  'hex-imperial',
+  'hex-bit-quarter',
+  'hex-bit-4mm',
   'router-quarter',
   'router-eighth',
+  'router-half',
   'router-6mm',
   'router-8mm',
   'router-12mm',
   'battery-aa',
   'battery-aaa',
   'battery-18650-4',
+  'battery-21700',
   'battery-18650-8',
   'battery-cr2032',
   'battery-mixed',
@@ -71,6 +77,8 @@ export const DrillBitHolderParamsSchema = z.object({
   stackingLip: z.boolean().default(true),
   magnetHoles: z.boolean().default(false),
   screwHoles: z.boolean().default(false),
+  /** Engrave each hole's size next to it (sets only; fills are all one size). */
+  holeLabels: z.boolean().default(true),
 });
 export type DrillBitHolderParams = z.infer<typeof DrillBitHolderParamsSchema>;
 
@@ -105,11 +113,18 @@ export const PartsTrayParamsSchema = z.object({
   cellsX: z.number().int().min(1).max(20).default(2),
   cellsY: z.number().int().min(1).max(20).default(2),
   heightUnits: z.number().int().min(1).max(30).default(2),
+  /** 'square' is any rectangle: pocketSize across (X) by pocketLength front-to-back (Y). */
   pocketShape: z.enum(['circle', 'square']).default('circle'),
-  pocketSize: z.number().min(3).max(60).default(22),
+  /** Circle diameter, or rectangle width (X). */
+  pocketSize: z.number().min(3).max(150).default(22),
+  /** Rectangle length (Y); unset means square. Thin values make upright slots. */
+  pocketLength: z.number().min(1).max(150).optional(),
+  cornerRadius: z.number().min(0).max(20).default(1),
+  /** Rounded pocket floor, so small parts slide out with a fingertip. */
+  roundedBottom: z.boolean().default(false),
   pocketDepth: z.number().min(1).max(50).default(10),
-  pocketCols: z.number().int().min(1).max(20).default(3),
-  pocketRows: z.number().int().min(1).max(20).default(3),
+  pocketCols: z.number().int().min(1).max(40).default(3),
+  pocketRows: z.number().int().min(1).max(40).default(3),
   pocketSpacing: z.number().min(0.5).max(10).default(2),
   edgeClearance: z.number().min(1).max(15).default(3),
   stackingLip: z.boolean().default(false),

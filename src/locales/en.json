@@ -97,8 +97,8 @@
     "compartments": "Compartments"
   },
   "warning": {
-    "tooManyBits": "too many bits",
-    "tooManyBitsDetail": "{{placed}} placed · {{dropped}} dropped — increase bin size or reduce spacing.",
+    "tooManyBits": "doesn't all fit",
+    "tooManyBitsDetail": "{{placed}} cut · {{dropped}} left out — make the part bigger or taller, or reduce spacing.",
     "buildError": "Build error"
   }
 }

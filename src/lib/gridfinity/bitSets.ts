@@ -1,74 +1,53 @@
 /**
- * Standard drill-bit set presets. All diameters in millimetres.
- * Fractional, letter, and number sets are converted to mm so the geometry
- * kernel only deals in one unit.
+ * Hole sets for the Holder model. All sizes in millimetres; inch-based sets
+ * are converted so the geometry kernel only deals in one unit.
+ *
+ * A 'set' places each item once, in catalogue order, with its size engraved
+ * underneath (drill indexes, hex keys). A 'fill' repeats a single item to fill
+ * whatever block it's given (batteries, bits, router shanks).
  */
+import type { BitSetId } from '@/lib/params/schema';
 
-export type BitSetId =
-  | 'metric-basic'
-  | 'metric-fine'
-  | 'fractional-inch'
-  | 'letter'
-  | 'number'
-  | 'router-quarter'
-  | 'router-eighth'
-  | 'router-6mm'
-  | 'router-8mm'
-  | 'router-12mm'
-  | 'battery-aa'
-  | 'battery-aaa'
-  | 'battery-18650-4'
-  | 'battery-18650-8'
-  | 'battery-cr2032'
-  | 'battery-mixed'
-  | 'custom';
+export type { BitSetId };
 
-export type BitSet = {
-  id: BitSetId;
+/** 'hex' holes are sized across flats, for hex keys and hex-shank bits. */
+export type HoleShape = 'round' | 'hex';
+
+/** `label` is the short text engraved next to the hole. */
+export type HoleItem = { mm: number; label: string };
+
+export type HoleSet = {
+  shape: HoleShape;
+  mode: 'set' | 'fill';
+  items: ReadonlyArray<HoleItem>;
+};
+
+export type BitSetGroup = 'drill' | 'hex' | 'router' | 'battery';
+
+export type BitSet = HoleSet & {
+  id: Exclude<BitSetId, 'custom'>;
   label: string;
   description: string;
-  diameters: ReadonlyArray<{ mm: number; label: string }>;
+  group: BitSetGroup;
+  /** Suggested hole depth, applied when the set is picked. */
+  depth: number;
+  /** Sizes are inch-based; hidden while working in millimetres. */
+  imperial?: true;
+  /** Kept only so old links and saved designs still load; not offered in the UI. */
+  legacy?: true;
 };
 
 const MM_PER_INCH = 25.4;
 
-function mm(n: number, label: string) {
-  return { mm: n, label };
+function fraction(num: number, den: number): HoleItem {
+  return { mm: (num / den) * MM_PER_INCH, label: `${num}/${den}` };
 }
 
-function frac(num: number, den: number): { mm: number; label: string } {
-  return { mm: (num / den) * MM_PER_INCH, label: `${num}/${den}"` };
+function metricRange(from: number, to: number, step: number): HoleItem[] {
+  const out: HoleItem[] = [];
+  for (let d = from; d <= to + 1e-9; d += step) out.push({ mm: d, label: `${d}` });
+  return out;
 }
-
-const METRIC_BASIC: ReadonlyArray<{ mm: number; label: string }> = (() => {
-  const out: Array<{ mm: number; label: string }> = [];
-  for (let d = 1; d <= 13; d += 1) out.push(mm(d, `${d} mm`));
-  return out;
-})();
-
-const METRIC_FINE: ReadonlyArray<{ mm: number; label: string }> = (() => {
-  const out: Array<{ mm: number; label: string }> = [];
-  for (let d = 1; d <= 13; d += 0.5) out.push(mm(d, `${d} mm`));
-  return out;
-})();
-
-const FRACTIONAL: ReadonlyArray<{ mm: number; label: string }> = [
-  frac(1, 16),
-  frac(3, 32),
-  frac(1, 8),
-  frac(5, 32),
-  frac(3, 16),
-  frac(7, 32),
-  frac(1, 4),
-  frac(9, 32),
-  frac(5, 16),
-  frac(11, 32),
-  frac(3, 8),
-  frac(13, 32),
-  frac(7, 16),
-  frac(15, 32),
-  frac(1, 2),
-];
 
 const LETTER_SIZES_IN: ReadonlyArray<[string, number]> = [
   ['A', 0.234], ['B', 0.238], ['C', 0.242], ['D', 0.246], ['E', 0.250],
@@ -78,9 +57,6 @@ const LETTER_SIZES_IN: ReadonlyArray<[string, number]> = [
   ['U', 0.368], ['V', 0.377], ['W', 0.386], ['X', 0.397], ['Y', 0.404],
   ['Z', 0.413],
 ];
-const LETTER: ReadonlyArray<{ mm: number; label: string }> = LETTER_SIZES_IN.map(
-  ([letter, inches]) => ({ mm: inches * MM_PER_INCH, label: letter }),
-);
 
 const NUMBER_SIZES_IN: ReadonlyArray<[number, number]> = [
   [1, 0.2280], [2, 0.2210], [3, 0.2130], [4, 0.2090], [5, 0.2055],
@@ -90,97 +66,117 @@ const NUMBER_SIZES_IN: ReadonlyArray<[number, number]> = [
   [21, 0.1590], [22, 0.1570], [23, 0.1540], [24, 0.1520], [25, 0.1495],
   [26, 0.1470], [27, 0.1440], [28, 0.1405], [29, 0.1360], [30, 0.1285],
 ];
-const NUMBER: ReadonlyArray<{ mm: number; label: string }> = NUMBER_SIZES_IN.map(
-  ([num, inches]) => ({ mm: inches * MM_PER_INCH, label: `#${num}` }),
-);
 
-function routerShank(id: Exclude<BitSetId, 'custom'>, label: string, mmDiameter: number, count: number, displayLabel: string): BitSet {
-  const diameters: Array<{ mm: number; label: string }> = [];
-  for (let i = 1; i <= count; i++) {
-    diameters.push({ mm: mmDiameter, label: `${displayLabel} #${i}` });
-  }
-  return {
-    id,
-    label,
-    description: `${count} pockets sized for a ${displayLabel} shank.`,
-    diameters,
-  };
-}
-
-function batterySet(
+function fill(
   id: Exclude<BitSetId, 'custom'>,
+  group: BitSetGroup,
   label: string,
-  mmDiameter: number,
-  count: number,
-  cellLabel: string,
   description: string,
+  shape: HoleShape,
+  item: HoleItem,
+  depth: number,
+  extra: { imperial?: true; legacy?: true } = {},
 ): BitSet {
-  const diameters: Array<{ mm: number; label: string }> = [];
-  for (let i = 1; i <= count; i++) {
-    diameters.push({ mm: mmDiameter, label: `${cellLabel} #${i}` });
-  }
-  return { id, label, description, diameters };
+  return { id, group, label, description, shape, mode: 'fill', items: [item], depth, ...extra };
 }
 
 export const BIT_SETS: Record<Exclude<BitSetId, 'custom'>, BitSet> = {
+  // ── Drill indexes: every size once, in order, labelled ──────────────────
   'metric-basic': {
-    id: 'metric-basic',
+    id: 'metric-basic', group: 'drill', shape: 'round', mode: 'set', depth: 15,
     label: 'Metric 1–13 mm',
     description: 'Whole-mm steps, 13 bits.',
-    diameters: METRIC_BASIC,
+    items: metricRange(1, 13, 1),
   },
   'metric-fine': {
-    id: 'metric-fine',
+    id: 'metric-fine', group: 'drill', shape: 'round', mode: 'set', depth: 15,
     label: 'Metric 1–13 mm, 0.5 step',
     description: 'Half-mm steps, 25 bits.',
-    diameters: METRIC_FINE,
+    items: metricRange(1, 13, 0.5),
   },
   'fractional-inch': {
-    id: 'fractional-inch',
-    label: 'Fractional 1/16" – 1/2"',
+    id: 'fractional-inch', group: 'drill', shape: 'round', mode: 'set', depth: 15, imperial: true,
+    label: 'Fractional 1/16"–1/2"',
     description: '32nds, 15 bits.',
-    diameters: FRACTIONAL,
-  },
-  letter: {
-    id: 'letter',
-    label: 'Letter A – Z',
-    description: 'US letter gauge, 26 bits.',
-    diameters: LETTER,
-  },
-  number: {
-    id: 'number',
-    label: 'Number #1 – #30',
-    description: 'Wire gauge, 30 bits.',
-    diameters: NUMBER,
-  },
-  'router-quarter': routerShank('router-quarter', 'Router 1/4" shank ×12', 6.35, 12, '1/4"'),
-  'router-eighth': routerShank('router-eighth', 'Router 1/8" shank ×16', 3.175, 16, '1/8"'),
-  'router-6mm': routerShank('router-6mm', 'Router 6 mm shank ×12', 6, 12, '6 mm'),
-  'router-8mm': routerShank('router-8mm', 'Router 8 mm shank ×9', 8, 9, '8 mm'),
-  'router-12mm': routerShank('router-12mm', 'Router 12 mm shank ×6', 12, 6, '12 mm'),
-  'battery-aa': batterySet('battery-aa', 'Battery AA ×4', 14.7, 4, 'AA', 'AA cells (14.5 mm + 0.2 mm slip).'),
-  'battery-aaa': batterySet('battery-aaa', 'Battery AAA ×4', 10.7, 4, 'AAA', 'AAA cells (10.5 mm + 0.2 mm slip).'),
-  'battery-18650-4': batterySet('battery-18650-4', 'Battery 18650 ×4', 18.7, 4, '18650', '18650 Li-ion cells (18.5 mm + 0.2 mm slip).'),
-  'battery-18650-8': batterySet('battery-18650-8', 'Battery 18650 ×8', 18.7, 8, '18650', '18650 Li-ion cells, 8-pack.'),
-  'battery-cr2032': batterySet('battery-cr2032', 'Coin CR2032 ×8', 20.4, 8, 'CR2032', 'Coin cells, drop-in pockets.'),
-  'battery-mixed': {
-    id: 'battery-mixed',
-    label: 'Battery Mixed (AA/AAA/18650)',
-    description: '2× AA, 2× AAA, 2× 18650 in one bin.',
-    diameters: [
-      { mm: 18.7, label: '18650 #1' },
-      { mm: 18.7, label: '18650 #2' },
-      { mm: 14.7, label: 'AA #1' },
-      { mm: 14.7, label: 'AA #2' },
-      { mm: 10.7, label: 'AAA #1' },
-      { mm: 10.7, label: 'AAA #2' },
+    items: [
+      fraction(1, 16), fraction(3, 32), fraction(1, 8), fraction(5, 32), fraction(3, 16),
+      fraction(7, 32), fraction(1, 4), fraction(9, 32), fraction(5, 16), fraction(11, 32),
+      fraction(3, 8), fraction(13, 32), fraction(7, 16), fraction(15, 32), fraction(1, 2),
     ],
   },
+  letter: {
+    id: 'letter', group: 'drill', shape: 'round', mode: 'set', depth: 15, imperial: true,
+    label: 'Letter A–Z',
+    description: 'US letter gauge, 26 bits.',
+    items: LETTER_SIZES_IN.map(([letter, inches]) => ({ mm: inches * MM_PER_INCH, label: letter })),
+  },
+  number: {
+    id: 'number', group: 'drill', shape: 'round', mode: 'set', depth: 15, imperial: true,
+    label: 'Number #1–#30',
+    description: 'Wire gauge, 30 bits.',
+    items: NUMBER_SIZES_IN.map(([num, inches]) => ({ mm: inches * MM_PER_INCH, label: `#${num}` })),
+  },
+
+  // ── Hex keys and hex-shank bits ─────────────────────────────────────────
+  'hex-metric': {
+    id: 'hex-metric', group: 'hex', shape: 'hex', mode: 'set', depth: 15,
+    label: 'Hex keys 1.5–10 mm',
+    description: 'Metric Allen keys stand in hex holes, 9 sizes.',
+    items: [1.5, 2, 2.5, 3, 4, 5, 6, 8, 10].map((d) => ({ mm: d, label: `${d}` })),
+  },
+  'hex-imperial': {
+    id: 'hex-imperial', group: 'hex', shape: 'hex', mode: 'set', depth: 15, imperial: true,
+    label: 'Hex keys 5/64"–3/8"',
+    description: 'SAE Allen keys stand in hex holes, 11 sizes.',
+    items: [
+      fraction(5, 64), fraction(3, 32), fraction(7, 64), fraction(1, 8), fraction(9, 64),
+      fraction(5, 32), fraction(3, 16), fraction(7, 32), fraction(1, 4), fraction(5, 16), fraction(3, 8),
+    ],
+  },
+  'hex-bit-quarter': fill(
+    'hex-bit-quarter', 'hex', '1/4" hex bits', 'Screwdriver bits stand in hex holes; fills the block.',
+    'hex', { mm: 6.35, label: '1/4' }, 10,
+  ),
+  'hex-bit-4mm': fill(
+    'hex-bit-4mm', 'hex', '4 mm precision bits', 'Electronics-kit bits stand in hex holes; fills the block.',
+    'hex', { mm: 4, label: '4' }, 8,
+  ),
+
+  // ── Router shanks ───────────────────────────────────────────────────────
+  'router-eighth': fill('router-eighth', 'router', 'Router 1/8" shank', 'Fills the block.', 'round', { mm: 3.175, label: '1/8' }, 15, { imperial: true }),
+  'router-quarter': fill('router-quarter', 'router', 'Router 1/4" shank', 'Fills the block.', 'round', { mm: 6.35, label: '1/4' }, 20, { imperial: true }),
+  'router-half': fill('router-half', 'router', 'Router 1/2" shank', 'Fills the block.', 'round', { mm: 12.7, label: '1/2' }, 25, { imperial: true }),
+  'router-6mm': fill('router-6mm', 'router', 'Router 6 mm shank', 'Fills the block.', 'round', { mm: 6, label: '6' }, 20),
+  'router-8mm': fill('router-8mm', 'router', 'Router 8 mm shank', 'Fills the block.', 'round', { mm: 8, label: '8' }, 20),
+  'router-12mm': fill('router-12mm', 'router', 'Router 12 mm shank', 'Fills the block.', 'round', { mm: 12, label: '12' }, 25),
+
+  // ── Batteries (sizes include ~0.2 mm slip) ──────────────────────────────
+  'battery-aa': fill('battery-aa', 'battery', 'AA cells', 'Stand upright; fills the block.', 'round', { mm: 14.7, label: 'AA' }, 20),
+  'battery-aaa': fill('battery-aaa', 'battery', 'AAA cells', 'Stand upright; fills the block.', 'round', { mm: 10.7, label: 'AAA' }, 18),
+  'battery-18650-4': fill('battery-18650-4', 'battery', '18650 cells', 'Li-ion cells stand upright; fills the block.', 'round', { mm: 18.7, label: '18650' }, 25),
+  'battery-21700': fill('battery-21700', 'battery', '21700 cells', 'Li-ion cells stand upright; fills the block.', 'round', { mm: 21.4, label: '21700' }, 25),
+  'battery-cr2032': fill('battery-cr2032', 'battery', 'CR2032 coin cells', 'Stacked flat; fills the block. For upright slots, use a Pockets rack.', 'round', { mm: 20.4, label: 'CR2032' }, 6),
+  'battery-mixed': {
+    id: 'battery-mixed', group: 'battery', shape: 'round', mode: 'set', depth: 20,
+    label: 'Mixed: 18650, AA, AAA',
+    description: 'Two of each, labelled.',
+    items: [
+      { mm: 18.7, label: '18650' }, { mm: 18.7, label: '18650' },
+      { mm: 14.7, label: 'AA' }, { mm: 14.7, label: 'AA' },
+      { mm: 10.7, label: 'AAA' }, { mm: 10.7, label: 'AAA' },
+    ],
+  },
+  'battery-18650-8': fill('battery-18650-8', 'battery', '18650 cells', 'Li-ion cells stand upright; fills the block.', 'round', { mm: 18.7, label: '18650' }, 25, { legacy: true }),
 };
 
-export function bitsForSet(id: BitSetId, customMm: ReadonlyArray<number>): ReadonlyArray<{ mm: number; label: string }> {
+/** The holes to cut for a set id, or for a custom list of round diameters. */
+export function holeSetFor(id: BitSetId, customMm: ReadonlyArray<number>): HoleSet {
   if (id === 'custom') {
-    return customMm.map((d) => ({ mm: d, label: `${d.toFixed(2)} mm` }));
+    return {
+      shape: 'round',
+      mode: 'set',
+      items: customMm.map((d) => ({ mm: d, label: `${Number(d.toFixed(2))}` })),
+    };
   }
-  return BIT_SETS[id].diameters;
+  return BIT_SETS[id];
 }

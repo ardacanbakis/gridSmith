@@ -21,9 +21,9 @@ Every calculation and geometry operation runs inside your browser. Nothing is ev
 | **Bin** | Standard Gridfinity bin — set width, depth, and height in grid cells and height units. Add internal dividers, a scoop ramp, labels, and mounting holes. |
 | **Lid** | Friction-fit lid for any bin with a stacking lip — a flat plate that rests on the lip, with a grip ring that drops into the lip's straight section. Tune the fit clearance for your printer. |
 | **Baseplate** | Plate with the Gridfinity base profile recessed in — minimal (open frame) or rigid (solid floor under the pockets). Rigid plates can take magnet and screw holes; magnets thicken the floor to fit 6 × 2 mm discs. |
-| **Organizers** | Solid block with cylindrical holes drilled from the top. Built-in presets for metric drill bits, router shanks (metric and imperial), and batteries. Also accepts a custom diameter list. |
+| **Holder** | Solid block with holes from the top. Labelled sets (drill indexes, hex keys) are placed in order with each size engraved under its hole; single sizes (hex bits, router shanks, AA/AAA/18650/21700 cells) fill the block, in staggered rows when that fits more. Round or hex holes, or your own list of sizes. |
 | **Screw Organizer** | Divided bin with optional back-tilt wedge per compartment — screws roll to the front by gravity. Per-column embossed or engraved labels. |
-| **Parts Tray** | Solid block with a configurable grid of circular or square pockets — great for tokens, coins, small electronics, or foam-insert-style storage. |
+| **Pocket tray** | Solid block with a grid of round cups or rectangular pockets and slots — SD and microSD racks, coin-cell racks, dice and token trays, scoop cups. Optional rounded floors, a one-click Fill, and pockets never cut into the foot. |
 
 ---
 
@@ -61,10 +61,10 @@ Bin walls follow the same outline: vertical corners are rounded to 3.75 mm, and 
 The geometry test suite checks these fits directly: bins stacked on bins (and on screw organizers), bins in baseplates, and lids on bins.
 
 ### Template Gallery
-A full-screen gallery of 45+ ready-to-use starter designs, grouped into Quick Start, Bins, Lids, Organizers, Trays, and Baseplates. Each card shows a parametric schematic drawn from its actual geometry. Search by name or tag, then click any card to apply it — every parameter remains editable afterward. Open it from the header or press `T`.
+A full-screen gallery of 50+ ready-to-use starter designs, grouped into Quick Start, Bins, Lids, Holders, Pocket trays, and Baseplates. Each card shows a parametric schematic drawn from its actual geometry. Search by name or tag, then click any card to apply it — every parameter remains editable afterward. Open it from the header or press `T`.
 
-### Organizer Templates
-The Organizers panel includes a browsable template library grouped by category (Drill Bits, Router, Batteries) with live search. Imperial presets (fractional-inch, letter, number drill sets; ¼″ / ⅛″ router shanks) are automatically hidden when metric units are selected.
+### Holder Sets
+The Holder panel has a browsable library grouped into Drill bits, Hex, Router and Batteries, with live search. Picking a set applies its suggested hole depth and adds height if needed. Inch-based sets (fractional, letter and number drills, SAE hex keys, ¼″ / ½″ / ⅛″ router shanks) are hidden while working in millimetres.
 
 ### Design Library
 Save any design to a local library, grouped by model type. Export the whole library to a JSON file as a backup or to share, and import designs back in — every entry is validated on import. Open it from the header or press `L`.

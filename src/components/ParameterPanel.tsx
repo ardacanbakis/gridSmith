@@ -13,9 +13,15 @@ import {
   type BitSetId,
   type Units,
 } from '@/lib/params/schema';
-import { STANDARD, isStandardSpec } from '@/lib/gridfinity/spec';
-import { LABEL_SKIN } from '@/lib/gridfinity/primitives';
-import { BIT_SETS } from '@/lib/gridfinity/bitSets';
+import { STANDARD, buildSpec, isStandardSpec } from '@/lib/gridfinity/spec';
+import {
+  LABEL_SKIN,
+  heightUnitsForDepth,
+  maxPocketDepth,
+  trayCapacity,
+} from '@/lib/gridfinity/primitives';
+import { BIT_SETS, holeSetFor, type BitSetGroup } from '@/lib/gridfinity/bitSets';
+import { previewHolderLayout } from '@/lib/templates/gallery';
 import { fmtLength } from '@/lib/units';
 
 export type PanelMode = 'all' | 'core' | 'finish';
@@ -27,9 +33,9 @@ const MODEL_OPTIONS: Array<{ kind: ModelKind; label: string; description: string
   { kind: 'bin', label: 'Bin', description: 'Hollow storage bin with dividers & labels', icon: <Box size={16} /> },
   { kind: 'lid', label: 'Lid', description: 'Friction-fit lid for any bin with a stacking lip', icon: <PanelTop size={16} /> },
   { kind: 'baseplate', label: 'Plate', description: 'Gridfinity-compatible baseplate', icon: <LayoutGrid size={16} /> },
-  { kind: 'drillBitHolder', label: 'Organizers', description: 'Cylindrical holes for tools & batteries', icon: <Archive size={16} /> },
+  { kind: 'drillBitHolder', label: 'Holders', description: 'Labelled holes for drill bits, hex keys, bits & batteries', icon: <Archive size={16} /> },
   { kind: 'screwOrganizer', label: 'Screws', description: 'Divided tray with tilt & per-column labels', icon: <Wrench size={16} /> },
-  { kind: 'partsTray', label: 'Tray', description: 'Grid of circular or square pockets', icon: <Layers size={16} /> },
+  { kind: 'partsTray', label: 'Pockets', description: 'Cups and upright slots — SD cards, coin cells, dice, parts', icon: <Layers size={16} /> },
 ];
 
 function ModelTypePicker({
@@ -250,6 +256,34 @@ function SegmentedControl<T extends string>({
   );
 }
 
+/**
+ * Shown when holes or pockets are set deeper than the part's height allows;
+ * the geometry stops them above the foot. Offers the height that would fit.
+ */
+function DepthNote({
+  depth,
+  max,
+  units,
+  onAddHeight,
+}: {
+  depth: number;
+  max: number;
+  units: Units;
+  onAddHeight: () => void;
+}) {
+  if (depth <= max + 1e-9) return null;
+  return (
+    <div className="flex items-start gap-2">
+      <p className="text-xs text-warn leading-snug flex-1">
+        Cut {fmtLength(max, units, 1)} deep — the part isn't tall enough for {fmtLength(depth, units, 1)}.
+      </p>
+      <button type="button" className="btn text-xs shrink-0" onClick={onAddHeight}>
+        Add height
+      </button>
+    </div>
+  );
+}
+
 /** Shown when a label is deeper than the wall allows; the geometry caps it to keep a skin. */
 function LabelDepthNote({ depth, wall, units }: { depth: number; wall: number; units: Units }) {
   const cap = Math.max(0, wall - LABEL_SKIN);
@@ -262,45 +296,19 @@ function LabelDepthNote({ depth, wall, units }: { depth: number; wall: number; u
   );
 }
 
-type TemplateEntry = { id: Exclude<BitSetId, 'custom'>; imperialOnly?: true };
-type BrowserTab = 'drillBits' | 'router' | 'batteries';
-
-const BROWSER_TABS: Array<{ id: BrowserTab; label: string; entries: TemplateEntry[] }> = [
-  {
-    id: 'drillBits',
-    label: 'Drill Bits',
-    entries: [
-      { id: 'metric-basic' },
-      { id: 'metric-fine' },
-      { id: 'fractional-inch', imperialOnly: true },
-      { id: 'letter', imperialOnly: true },
-      { id: 'number', imperialOnly: true },
-    ],
-  },
-  {
-    id: 'router',
-    label: 'Router',
-    entries: [
-      { id: 'router-6mm' },
-      { id: 'router-8mm' },
-      { id: 'router-12mm' },
-      { id: 'router-quarter', imperialOnly: true },
-      { id: 'router-eighth', imperialOnly: true },
-    ],
-  },
-  {
-    id: 'batteries',
-    label: 'Batteries',
-    entries: [
-      { id: 'battery-aa' },
-      { id: 'battery-aaa' },
-      { id: 'battery-18650-4' },
-      { id: 'battery-18650-8' },
-      { id: 'battery-cr2032' },
-      { id: 'battery-mixed' },
-    ],
-  },
+const BROWSER_TABS: Array<{ id: BitSetGroup; label: string }> = [
+  { id: 'drill', label: 'Drill bits' },
+  { id: 'hex', label: 'Hex' },
+  { id: 'router', label: 'Router' },
+  { id: 'battery', label: 'Batteries' },
 ];
+
+/** Sets offered in a tab: not legacy aliases, and not inch-based ones while working in mm. */
+function setsInTab(group: BitSetGroup, units: Units) {
+  return Object.values(BIT_SETS).filter(
+    (s) => s.group === group && !s.legacy && (!s.imperial || units === 'imperial'),
+  );
+}
 
 function TemplateBrowser({
   value,
@@ -311,23 +319,24 @@ function TemplateBrowser({
   units: Units;
   onChange: (id: BitSetId) => void;
 }) {
-  const [activeTab, setActiveTab] = useState<BrowserTab>('drillBits');
+  const [activeTab, setActiveTab] = useState<BitSetGroup>(
+    () => (value === 'custom' ? 'drill' : BIT_SETS[value].group),
+  );
   const [search, setSearch] = useState('');
 
-  const currentTab = BROWSER_TABS.find((t) => t.id === activeTab)!;
-  const entries = currentTab.entries.filter((e) => !e.imperialOnly || units === 'imperial');
+  const entries = setsInTab(activeTab, units);
 
   const q = search.trim().toLowerCase();
   const visible = q
-    ? entries.filter(({ id }) => BIT_SETS[id].label.toLowerCase().includes(q))
+    ? entries.filter((s) => `${s.label} ${s.description}`.toLowerCase().includes(q))
     : entries;
 
   return (
     <div className="flex flex-col gap-2">
       {/* Tabs */}
-      <div className="grid grid-cols-3 gap-0.5 p-0.5 bg-bg-elevated rounded-md border border-border">
+      <div className="grid grid-cols-4 gap-0.5 p-0.5 bg-bg-elevated rounded-md border border-border">
         {BROWSER_TABS.map((tab) => {
-          const count = tab.entries.filter((e) => !e.imperialOnly || units === 'imperial').length;
+          const count = setsInTab(tab.id, units).length;
           return (
             <button
               key={tab.id}
@@ -358,10 +367,10 @@ function TemplateBrowser({
 
       {/* List */}
       <div className="flex flex-col gap-1">
-        {visible.map(({ id }) => {
-          const bs = BIT_SETS[id];
+        {visible.map((bs) => {
+          const { id } = bs;
           const selected = value === id;
-          const count = bs.diameters.length;
+          const count = bs.mode === 'fill' ? 'fills block' : `${bs.items.length}`;
           return (
             <button
               key={id}
@@ -398,7 +407,7 @@ function TemplateBrowser({
           ].join(' ')}
         >
           <p className={`text-xs font-medium ${value === 'custom' ? 'text-accent' : 'text-text'}`}>Custom list…</p>
-          <p className="text-[11px] text-text-dim mt-0.5">Enter your own pocket diameters in mm.</p>
+          <p className="text-[11px] text-text-dim mt-0.5">Your own round hole sizes in mm, labelled.</p>
         </button>
       </div>
     </div>
@@ -541,6 +550,8 @@ type Props = {
 export function ParameterPanel({ mode = 'all', side = 'left' }: Props) {
   const { design, setModel, switchKind, setSpec } = useDesignStore();
   const { model, spec, units } = design;
+  // Full derived dimensions (foot height etc.) for depth limits and fit counts.
+  const geo = buildSpec(spec.gridUnit, spec.heightUnit);
   const specIsStandard = isStandardSpec(spec.gridUnit, spec.heightUnit);
   const len = (digits = 1) => (v: number) => fmtLength(v, units, digits);
 
@@ -846,13 +857,20 @@ export function ParameterPanel({ mode = 'all', side = 'left' }: Props) {
             )}
 
             {showCore && (
-              <Section title="Template">
+              <Section title="What it holds">
                 <TemplateBrowser
                   value={model.bitSet}
                   units={units}
-                  onChange={(id) =>
-                    setModel(DrillBitHolderParamsSchema.parse({ ...model, bitSet: id }))
-                  }
+                  onChange={(id) => {
+                    // Take the set's suggested depth, and enough height to cut it.
+                    const depth = id === 'custom' ? model.holeDepth : BIT_SETS[id].depth;
+                    setModel(DrillBitHolderParamsSchema.parse({
+                      ...model,
+                      bitSet: id,
+                      holeDepth: depth,
+                      heightUnits: Math.max(model.heightUnits, heightUnitsForDepth(geo, depth)),
+                    }));
+                  }}
                 />
                 {model.bitSet === 'custom' && (
                   <CustomBitsEditor
@@ -862,6 +880,24 @@ export function ParameterPanel({ mode = 'all', side = 'left' }: Props) {
                     }
                   />
                 )}
+                {(() => {
+                  const holes = holeSetFor(model.bitSet, model.customBits);
+                  if (holes.mode === 'fill') {
+                    const n = previewHolderLayout(model, geo).placed.length;
+                    return (
+                      <p className="text-xs text-text-dim leading-snug">
+                        Holds <span className="text-text tabular">{n}</span> in this block — resize it for more or fewer.
+                      </p>
+                    );
+                  }
+                  return (
+                    <Toggle
+                      label="Engrave sizes under holes"
+                      value={model.holeLabels}
+                      onChange={(v) => setModel(DrillBitHolderParamsSchema.parse({ ...model, holeLabels: v }))}
+                    />
+                  );
+                })()}
               </Section>
             )}
 
@@ -877,6 +913,17 @@ export function ParameterPanel({ mode = 'all', side = 'left' }: Props) {
                     setModel(DrillBitHolderParamsSchema.parse({ ...model, holeDepth: v }))
                   }
                   format={len(1)}
+                />
+                <DepthNote
+                  depth={model.holeDepth}
+                  max={maxPocketDepth(geo, model.heightUnits)}
+                  units={units}
+                  onAddHeight={() =>
+                    setModel(DrillBitHolderParamsSchema.parse({
+                      ...model,
+                      heightUnits: heightUnitsForDepth(geo, model.holeDepth),
+                    }))
+                  }
                 />
                 <NumberField
                   label="Radial clearance"
@@ -976,20 +1023,42 @@ export function ParameterPanel({ mode = 'all', side = 'left' }: Props) {
                   onChange={(v) => setModel(PartsTrayParamsSchema.parse({ ...model, pocketShape: v as 'circle' | 'square' }))}
                   options={[
                     { value: 'circle', label: 'Circle' },
-                    { value: 'square', label: 'Square' },
+                    { value: 'square', label: 'Rectangle / slot' },
                   ]}
                 />
                 <NumberField
-                  label="Pocket size"
+                  label={model.pocketShape === 'circle' ? 'Diameter' : 'Width (across)'}
                   value={model.pocketSize}
                   min={3}
-                  max={60}
-                  step={0.5}
+                  max={150}
+                  step={0.1}
                   onChange={(v) => setModel(PartsTrayParamsSchema.parse({ ...model, pocketSize: v }))}
                   format={len(1)}
                 />
+                {model.pocketShape === 'square' && (
+                  <>
+                    <NumberField
+                      label="Length (front to back)"
+                      value={model.pocketLength ?? model.pocketSize}
+                      min={1}
+                      max={150}
+                      step={0.1}
+                      onChange={(v) => setModel(PartsTrayParamsSchema.parse({ ...model, pocketLength: v }))}
+                      format={len(1)}
+                    />
+                    <NumberField
+                      label="Corner radius"
+                      value={model.cornerRadius}
+                      min={0}
+                      max={20}
+                      step={0.1}
+                      onChange={(v) => setModel(PartsTrayParamsSchema.parse({ ...model, cornerRadius: v }))}
+                      format={len(1)}
+                    />
+                  </>
+                )}
                 <NumberField
-                  label="Pocket depth"
+                  label="Depth"
                   value={model.pocketDepth}
                   min={1}
                   max={50}
@@ -997,20 +1066,57 @@ export function ParameterPanel({ mode = 'all', side = 'left' }: Props) {
                   onChange={(v) => setModel(PartsTrayParamsSchema.parse({ ...model, pocketDepth: v }))}
                   format={len(1)}
                 />
+                <DepthNote
+                  depth={model.pocketDepth}
+                  max={maxPocketDepth(geo, model.heightUnits)}
+                  units={units}
+                  onAddHeight={() =>
+                    setModel(PartsTrayParamsSchema.parse({
+                      ...model,
+                      heightUnits: heightUnitsForDepth(geo, model.pocketDepth),
+                    }))
+                  }
+                />
+                <Toggle
+                  label="Rounded floor (scoop out parts)"
+                  value={model.roundedBottom}
+                  onChange={(v) => setModel(PartsTrayParamsSchema.parse({ ...model, roundedBottom: v }))}
+                />
                 <NumberField
                   label="Columns"
                   value={model.pocketCols}
                   min={1}
-                  max={20}
+                  max={40}
                   onChange={(v) => setModel(PartsTrayParamsSchema.parse({ ...model, pocketCols: v }))}
                 />
                 <NumberField
                   label="Rows"
                   value={model.pocketRows}
                   min={1}
-                  max={20}
+                  max={40}
                   onChange={(v) => setModel(PartsTrayParamsSchema.parse({ ...model, pocketRows: v }))}
                 />
+                {(() => {
+                  const cap = trayCapacity(geo, model);
+                  const full = model.pocketCols === cap.cols && model.pocketRows === cap.rows;
+                  return (
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs text-text-dim">
+                        Room for <span className="text-text tabular">{cap.cols} × {cap.rows}</span>
+                      </p>
+                      <button
+                        type="button"
+                        className="btn text-xs"
+                        disabled={full || cap.cols === 0 || cap.rows === 0}
+                        onClick={() =>
+                          setModel(PartsTrayParamsSchema.parse({ ...model, pocketCols: cap.cols, pocketRows: cap.rows }))
+                        }
+                      >
+                        Fill tray
+                      </button>
+                    </div>
+                  );
+                })()}
               </Section>
             )}
 

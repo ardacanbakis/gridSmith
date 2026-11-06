@@ -1,12 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Archive, Box, Layers, LayoutGrid, PanelTop, Search, X, Zap } from 'lucide-react';
 import { useDesignStore } from '@/store/designStore';
-import { BIT_SETS } from '@/lib/gridfinity/bitSets';
+import { STANDARD_SPEC } from '@/lib/gridfinity/spec';
+import { holeWidth, trayCapacity, trayPocketFootprint } from '@/lib/gridfinity/primitives';
 import {
   CATEGORIES,
   CATEGORY_META,
   GALLERY_TEMPLATES,
   isImperialOnly,
+  previewHolderLayout,
   templateSpec,
   type TemplateCategory,
   type GalleryTemplate,
@@ -19,6 +21,42 @@ type Props = {
 };
 
 // ── Schematic SVG icons ────────────────────────────────────────────────────
+
+function hexPoints(cx: number, cy: number, r: number): string {
+  return Array.from({ length: 6 }, (_, k) => {
+    const a = (k * Math.PI) / 3;
+    return `${(cx + r * Math.cos(a)).toFixed(2)},${(cy + r * Math.sin(a)).toFixed(2)}`;
+  }).join(' ');
+}
+
+/**
+ * True-to-scale top view of a part's outline. `children` gets mm → SVG
+ * mappers (Y up in mm becomes down on screen) and the scale.
+ */
+function TopView({
+  cellsX,
+  cellsY,
+  children,
+}: {
+  cellsX: number;
+  cellsY: number;
+  children: (toX: (x: number) => number, toY: (y: number) => number, scale: number) => React.ReactNode;
+}) {
+  const W = cellsX * STANDARD_SPEC.gridUnit - STANDARD_SPEC.clearance;
+  const D = cellsY * STANDARD_SPEC.gridUnit - STANDARD_SPEC.clearance;
+  const s = Math.min(38 / W, 30 / D);
+  const pad = 3;
+  return (
+    <svg viewBox={`0 0 ${W * s + 2 * pad} ${D * s + 2 * pad}`} fill="none" className="h-14 w-auto max-w-full text-text-muted">
+      <rect x={pad} y={pad} width={W * s} height={D * s} rx={3.75 * s} stroke="currentColor" strokeWidth="1.2" />
+      {children(
+        (x) => pad + (W / 2 + x) * s,
+        (y) => pad + (D / 2 - y) * s,
+        s,
+      )}
+    </svg>
+  );
+}
 
 function ModelSchematic({ model }: { model: ModelParams }) {
   if (model.kind === 'bin') {
@@ -43,41 +81,63 @@ function ModelSchematic({ model }: { model: ModelParams }) {
   }
 
   if (model.kind === 'drillBitHolder') {
-    const count = model.bitSet === 'custom' ? 5 : Math.min(BIT_SETS[model.bitSet].diameters.length, 9);
-    const spacing = 38 / count;
+    // Drawn from the real layout (labels estimated), so the card shows what you'll get.
+    const { set, placed } = previewHolderLayout(model);
     return (
-      <svg viewBox="0 0 44 30" fill="none" className="h-10 w-auto text-text-muted">
-        <rect x="3" y="5" width="38" height="20" rx="2.5" stroke="currentColor" strokeWidth="1.8" />
-        {Array.from({ length: count }, (_, i) => {
-          const cx = 3 + spacing * (i + 0.5);
-          const r = Math.max(1.5, Math.min(4, spacing * 0.38));
-          return <circle key={i} cx={cx} cy={15} r={r} stroke="currentColor" strokeWidth="1.3" />;
-        })}
-      </svg>
+      <TopView cellsX={model.cellsX} cellsY={model.cellsY}>
+        {(toX, toY, s) =>
+          placed.map((p, i) => {
+            const r = (holeWidth(set.shape, set.items[p.item].mm, model.clearance) / 2) * s;
+            const cx = toX(p.x);
+            const cy = toY(p.y);
+            return (
+              <g key={i}>
+                {set.shape === 'hex' ? (
+                  <polygon points={hexPoints(cx, cy, r)} stroke="currentColor" strokeWidth="0.7" />
+                ) : (
+                  <circle cx={cx} cy={cy} r={r} stroke="currentColor" strokeWidth="0.7" />
+                )}
+                {p.label && (
+                  <line x1={cx - 0.9} x2={cx + 0.9} y1={toY(p.label.y)} y2={toY(p.label.y)} stroke="currentColor" strokeWidth="0.6" />
+                )}
+              </g>
+            );
+          })
+        }
+      </TopView>
     );
   }
 
   if (model.kind === 'partsTray') {
-    const cols = Math.min(model.pocketCols, 6);
-    const rows = Math.min(model.pocketRows, 4);
-    const sx = 38 / cols;
-    const sy = 28 / rows;
+    const cap = trayCapacity(STANDARD_SPEC, model);
+    const cols = Math.min(model.pocketCols, cap.cols);
+    const rows = Math.min(model.pocketRows, cap.rows);
+    const { w, l } = trayPocketFootprint(model);
     return (
-      <svg viewBox="0 0 44 34" fill="none" className="h-10 w-auto text-text-muted">
-        <rect x="3" y="3" width="38" height="28" rx="2.5" stroke="currentColor" strokeWidth="1.8" />
-        {Array.from({ length: rows }, (_, r) =>
-          Array.from({ length: cols }, (_, c) => {
-            const cx = 3 + sx * (c + 0.5);
-            const cy = 3 + sy * (r + 0.5);
-            const sz = Math.min(sx, sy) * 0.38;
+      <TopView cellsX={model.cellsX} cellsY={model.cellsY}>
+        {(toX, toY, s) =>
+          Array.from({ length: rows * cols }, (_, k) => {
+            const i = k % cols;
+            const j = Math.floor(k / cols);
+            const cx = toX((i - (cols - 1) / 2) * (w + model.pocketSpacing));
+            const cy = toY(((rows - 1) / 2 - j) * (l + model.pocketSpacing));
             return model.pocketShape === 'circle' ? (
-              <circle key={`${r}-${c}`} cx={cx} cy={cy} r={sz} stroke="currentColor" strokeWidth="1.2" />
+              <circle key={k} cx={cx} cy={cy} r={(w / 2) * s} stroke="currentColor" strokeWidth="0.7" />
             ) : (
-              <rect key={`${r}-${c}`} x={cx - sz} y={cy - sz} width={sz * 2} height={sz * 2} stroke="currentColor" strokeWidth="1.2" />
+              <rect
+                key={k}
+                x={cx - (w / 2) * s}
+                y={cy - (l / 2) * s}
+                width={w * s}
+                height={Math.max(l * s, 0.4)}
+                rx={Math.min(model.cornerRadius * s, (w * s) / 2, (l * s) / 2)}
+                stroke="currentColor"
+                strokeWidth="0.7"
+              />
             );
           })
-        )}
-      </svg>
+        }
+      </TopView>
     );
   }
 

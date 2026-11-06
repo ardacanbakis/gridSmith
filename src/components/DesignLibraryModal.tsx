@@ -4,6 +4,7 @@ import { Archive, Box, Download, FileInput, Layers, LayoutGrid, PanelTop, Save, 
 import { useDesignStore } from '@/store/designStore';
 import { useDesignLibraryStore, type SavedDesign } from '@/store/designLibraryStore';
 import { DesignSchema } from '@/lib/params/schema';
+import { BIT_SETS } from '@/lib/gridfinity/bitSets';
 import type { ModelParams } from '@/lib/params/schema';
 
 type Props = {
@@ -19,9 +20,9 @@ const KIND_LABEL: Record<ModelParams['kind'], string> = {
   bin:            'Bins',
   lid:            'Lids',
   baseplate:      'Baseplates',
-  drillBitHolder: 'Organizers',
+  drillBitHolder: 'Holders',
   screwOrganizer: 'Screw organizers',
-  partsTray:      'Parts trays',
+  partsTray:      'Pocket trays',
 };
 
 const KIND_ICON: Record<ModelParams['kind'], React.ReactNode> = {
@@ -52,7 +53,7 @@ function describe(saved: SavedDesign): string {
   }
   if (m.kind === 'lid') return `${m.cellsX}×${m.cellsY} · ${m.lidClearance}mm clearance`;
   if (m.kind === 'drillBitHolder')
-    return `${m.cellsX}×${m.cellsY}×${m.heightUnits}u · ${m.bitSet}`;
+    return `${m.cellsX}×${m.cellsY}×${m.heightUnits}u · ${m.bitSet === 'custom' ? 'custom sizes' : BIT_SETS[m.bitSet].label}`;
   if (m.kind === 'screwOrganizer') return `${m.cellsX}×${m.cellsY} · ${m.cols}×${m.rows}`;
   return `${m.cellsX}×${m.cellsY}×${m.heightUnits}u · ${m.pocketCols}×${m.pocketRows} pockets`;
 }

@@ -1,5 +1,6 @@
 import type { CrossSection, ManifoldToplevel, Manifold, Vec3 } from 'manifold-3d';
 import type { ProfileLayer, Spec } from './spec';
+import type { HoleSet, HoleShape } from './bitSets';
 import type { Polygon } from '@/lib/labels/textToPolygons';
 import { buildTextManifold } from '@/lib/labels/emboss';
 
@@ -739,12 +740,41 @@ function buildBackTiltWedges(
   return acc;
 }
 
+/** Material kept under any hole or pocket cut into a solid part, above the foot. */
+const POCKET_FLOOR = 1;
+
+/**
+ * Deepest a hole or pocket can go from the top of a solid part while keeping a
+ * floor above the foot. Any deeper would cut into the feet and open the
+ * bottom where cells meet.
+ */
+export function maxPocketDepth(spec: Spec, heightUnits: number): number {
+  return Math.max(0, heightUnits * spec.heightUnit - spec.baseProfile.totalHeight - POCKET_FLOOR);
+}
+
+/** Fewest height units whose solid top can take a hole or pocket `depth` deep. */
+export function heightUnitsForDepth(spec: Spec, depth: number): number {
+  return Math.ceil((depth + spec.baseProfile.totalHeight + POCKET_FLOOR) / spec.heightUnit - 1e-9);
+}
+
+/** Solid top area of a part, inside its edge margin. */
+function usableArea(spec: Spec, cellsX: number, cellsY: number, edge: number): { w: number; d: number } {
+  return {
+    w: cellsX * spec.gridUnit - spec.clearance - 2 * edge,
+    d: cellsY * spec.gridUnit - spec.clearance - 2 * edge,
+  };
+}
+
 export type PartsTrayOptions = {
   cellsX: number;
   cellsY: number;
   heightUnits: number;
+  /** 'square' is any rectangle: pocketSize (X) by pocketLength (Y). */
   pocketShape: 'circle' | 'square';
   pocketSize: number;
+  pocketLength?: number;
+  cornerRadius: number;
+  roundedBottom: boolean;
   pocketDepth: number;
   pocketCols: number;
   pocketRows: number;
@@ -755,11 +785,69 @@ export type PartsTrayOptions = {
   screwHoles: boolean;
 };
 
+type TrayLayoutOptions = Pick<
+  PartsTrayOptions,
+  'cellsX' | 'cellsY' | 'pocketShape' | 'pocketSize' | 'pocketLength' | 'pocketSpacing' | 'edgeClearance'
+>;
+
+/** Pocket footprint: width across (X) and length front-to-back (Y). */
+export function trayPocketFootprint(opts: Pick<PartsTrayOptions, 'pocketShape' | 'pocketSize' | 'pocketLength'>): {
+  w: number;
+  l: number;
+} {
+  if (opts.pocketShape === 'circle') return { w: opts.pocketSize, l: opts.pocketSize };
+  return { w: opts.pocketSize, l: opts.pocketLength ?? opts.pocketSize };
+}
+
+/** Most pockets that fit across and along the tray at the current size and spacing. */
+export function trayCapacity(spec: Spec, opts: TrayLayoutOptions): { cols: number; rows: number } {
+  const { w, l } = trayPocketFootprint(opts);
+  const area = usableArea(spec, opts.cellsX, opts.cellsY, opts.edgeClearance);
+  const fit = (span: number, size: number) =>
+    Math.max(0, Math.floor((span + opts.pocketSpacing + 1e-6) / (size + opts.pocketSpacing)));
+  return { cols: fit(area.w, w), rows: fit(area.d, l) };
+}
+
+/**
+ * One pocket, floor at z = 0 and overshooting z = depth. With `rounded`, the
+ * floor is filleted into a bowl: the hull of the straight walls and spheres
+ * swept round the outline inset by the fillet radius.
+ */
+function trayPocket(
+  m: ManifoldToplevel,
+  shape: 'circle' | 'square',
+  w: number,
+  l: number,
+  cornerRadius: number,
+  depth: number,
+  rounded: boolean,
+): Manifold {
+  const top = depth + 0.1;
+  const outline = shape === 'circle'
+    ? m.CrossSection.circle(w / 2, CORNER_SEGMENTS)
+    : roundedRect(m, w, l, cornerRadius);
+  const fillet = rounded ? Math.min(w / 2, l / 2, depth) * 0.999 : 0;
+  if (fillet <= 0.05) return outline.extrude(top);
+
+  const walls = outline.extrude(top - fillet).translate([0, 0, fillet]);
+  const inset = shape === 'circle'
+    ? m.CrossSection.circle(Math.max(w / 2 - fillet, 0.001), CORNER_SEGMENTS)
+    : roundedRect(m, Math.max(w - 2 * fillet, 0.002), Math.max(l - 2 * fillet, 0.002), cornerRadius - fillet);
+  const ball = m.Manifold.sphere(fillet, 24);
+  const balls = inset.toPolygons().flat().map(([x, y]) => ball.translate([x, y, fillet]));
+  return m.Manifold.hull([walls, ...balls]);
+}
+
+/**
+ * Solid tray with a grid of cups or slots. Pockets are laid out on a pitch of
+ * size + spacing, centred, and only as many as fit are cut — the rest are
+ * reported as dropped. Depth is capped so a floor always remains above the foot.
+ */
 export function buildPartsTray(
   m: ManifoldToplevel,
   spec: Spec,
   opts: PartsTrayOptions,
-): Manifold {
+): { result: Manifold; placed: number; dropped: number } {
   const { gridUnit, clearance: binClearance, heightUnit, baseProfile } = spec;
   const outerW = opts.cellsX * gridUnit - binClearance;
   const outerD = opts.cellsY * gridUnit - binClearance;
@@ -768,43 +856,24 @@ export function buildPartsTray(
 
   const baseTiled = tileGrid(binBaseUnit(m, spec), opts.cellsX, opts.cellsY, gridUnit);
   const body = outlinePrism(m, spec, outerW, outerD, baseH, totalH);
-
   let result = baseTiled.add(body);
 
-  // Pocket centres, evenly distributed across usable footprint
-  const usableW = outerW - 2 * opts.edgeClearance;
-  const usableD = outerD - 2 * opts.edgeClearance;
-  const cols = opts.pocketCols;
-  const rows = opts.pocketRows;
-  const stepX = cols > 1 ? (usableW - opts.pocketSize) / (cols - 1) : 0;
-  const stepY = rows > 1 ? (usableD - opts.pocketSize) / (rows - 1) : 0;
-  const startX = cols > 1 ? -(usableW - opts.pocketSize) / 2 : 0;
-  const startY = rows > 1 ? -(usableD - opts.pocketSize) / 2 : 0;
+  const { w, l } = trayPocketFootprint(opts);
+  const capacity = trayCapacity(spec, opts);
+  const cols = Math.min(opts.pocketCols, capacity.cols);
+  const rows = Math.min(opts.pocketRows, capacity.rows);
+  const depth = Math.min(opts.pocketDepth, maxPocketDepth(spec, opts.heightUnits));
 
-  // Only punch pockets if they physically fit
-  const halfSize = opts.pocketSize / 2;
-  if (
-    opts.pocketSize > 0.5 &&
-    opts.pocketDepth > 0.2 &&
-    halfSize <= usableW / 2 + 0.001 &&
-    halfSize <= usableD / 2 + 0.001
-  ) {
-    const pocketDepth = Math.min(opts.pocketDepth, totalH - 0.8);
+  if (cols > 0 && rows > 0 && depth > 0.2) {
+    const pitchX = w + opts.pocketSpacing;
+    const pitchY = l + opts.pocketSpacing;
+    const pocket = trayPocket(m, opts.pocketShape, w, l, opts.cornerRadius, depth, opts.roundedBottom)
+      .translate([0, 0, totalH - depth]);
     let pockets: Manifold | null = null;
-
     for (let j = 0; j < rows; j++) {
       for (let i = 0; i < cols; i++) {
-        const cx = startX + i * stepX;
-        const cy = startY + j * stepY;
-        let pocket: Manifold;
-        if (opts.pocketShape === 'circle') {
-          pocket = m.Manifold.cylinder(pocketDepth + 0.1, halfSize, -1, 48, true)
-            .translate([cx, cy, totalH - pocketDepth / 2 + 0.05]);
-        } else {
-          pocket = m.Manifold.cube([opts.pocketSize, opts.pocketSize, pocketDepth + 0.1], true)
-            .translate([cx, cy, totalH - pocketDepth / 2 + 0.05]);
-        }
-        pockets = pockets ? pockets.add(pocket) : pocket;
+        const piece = pocket.translate([(i - (cols - 1) / 2) * pitchX, ((rows - 1) / 2 - j) * pitchY, 0]);
+        pockets = pockets ? pockets.add(piece) : piece;
       }
     }
     if (pockets) result = result.subtract(pockets);
@@ -817,7 +886,8 @@ export function buildPartsTray(
   const mountHoles = footHoles(m, spec, opts);
   if (mountHoles) result = result.subtract(mountHoles);
 
-  return result;
+  const placed = depth > 0.2 ? cols * rows : 0;
+  return { result, placed, dropped: opts.pocketCols * opts.pocketRows - placed };
 }
 
 export type LidOptions = {
@@ -857,22 +927,137 @@ export function buildLid(m: ManifoldToplevel, spec: Spec, opts: LidOptions): Man
   return plate.add(grip);
 }
 
-export type DrillHole = {
-  /** Hole centre X, in bin-local coordinates (bin is centred on origin). */
+/** Cap height of the size labels engraved on holders. */
+export const HOLE_LABEL_HEIGHT = 3.5;
+const HOLE_LABEL_DEPTH = 0.6;
+/** Gap between a row's holes and the labels under them. */
+const HOLE_LABEL_GAP = 1.2;
+
+/** Footprint width of a hole: across corners for hex holes, which are sized across flats. */
+export function holeWidth(shape: HoleShape, size: number, clearance: number): number {
+  const flats = size + 2 * clearance;
+  return shape === 'hex' ? flats / Math.cos(Math.PI / 6) : flats;
+}
+
+/** Rough engraved width of a label, for previews that have no font to measure with. */
+export function estimateLabelWidth(label: string): number {
+  return label.length * HOLE_LABEL_HEIGHT * 0.62;
+}
+
+export type HolePlacement = {
+  /** Index into the set's items. */
+  item: number;
   x: number;
-  /** Hole centre Y. */
   y: number;
-  /** Bit diameter in mm — we grow the hole by clearance radially. */
-  diameter: number;
-  /** Text label to record alongside the hole (used by later emboss feature). */
-  label: string;
+  /** Centre of the engraved label, when the hole has one. */
+  label?: { x: number; y: number };
 };
+
+/**
+ * Where the holes go on a usable area of w × d centred on the origin.
+ *
+ * A 'set' keeps catalogue order, reading left to right and back to front,
+ * each row centred, with an optional strip of labels under each row. Anything
+ * that doesn't fit is dropped. A 'fill' repeats one hole as many times as fit,
+ * in a square grid or staggered rows — whichever holds more.
+ */
+export function layoutHoles(
+  input: {
+    mode: 'set' | 'fill';
+    /** Hole footprint widths, one per item (a fill uses the first). */
+    widths: ReadonlyArray<number>;
+    /** Label widths per item; omit for no labels. */
+    labelWidths?: ReadonlyArray<number>;
+  },
+  w: number,
+  d: number,
+  spacing: number,
+): { placed: HolePlacement[]; dropped: number } {
+  if (input.mode === 'fill') return { placed: fillLayout(input.widths[0] ?? 0, w, d, spacing), dropped: 0 };
+
+  const labelled = input.labelWidths !== undefined;
+  const cellW = input.widths.map((hw, i) => Math.max(hw, input.labelWidths?.[i] ?? 0));
+  const rows: number[][] = [];
+  let row: number[] = [];
+  let rowW = 0;
+  input.widths.forEach((_, i) => {
+    const add = (row.length ? spacing : 0) + cellW[i];
+    if (row.length && rowW + add > w + 1e-6) {
+      rows.push(row);
+      row = [];
+      rowW = 0;
+    }
+    rowW += row.length ? spacing + cellW[i] : cellW[i];
+    row.push(i);
+  });
+  if (row.length) rows.push(row);
+
+  const labelBand = labelled ? HOLE_LABEL_GAP + HOLE_LABEL_HEIGHT : 0;
+  const rowHeight = (r: number[]) => Math.max(...r.map((i) => input.widths[i])) + labelBand;
+  // Keep whole rows, back to front, while they fit.
+  const kept: number[][] = [];
+  let used = 0;
+  for (const r of rows) {
+    const add = (kept.length ? spacing : 0) + rowHeight(r);
+    if (used + add > d + 1e-6) break;
+    kept.push(r);
+    used += add;
+  }
+
+  const placed: HolePlacement[] = [];
+  let top = used / 2;
+  for (const r of kept) {
+    const holeBand = Math.max(...r.map((i) => input.widths[i]));
+    const span = r.reduce((sum, i) => sum + cellW[i], 0) + spacing * (r.length - 1);
+    let x = -span / 2;
+    for (const i of r) {
+      const cx = x + cellW[i] / 2;
+      const cy = top - holeBand / 2;
+      placed.push({
+        item: i,
+        x: cx,
+        y: cy,
+        label: labelled ? { x: cx, y: top - holeBand - HOLE_LABEL_GAP - HOLE_LABEL_HEIGHT / 2 } : undefined,
+      });
+      x += cellW[i] + spacing;
+    }
+    top -= rowHeight(r) + spacing;
+  }
+  return { placed, dropped: input.widths.length - placed.length };
+}
+
+/** Centres for repeating one hole of footprint `size` over w × d. */
+function fillLayout(size: number, w: number, d: number, spacing: number): HolePlacement[] {
+  if (size <= 0 || size > w || size > d) return [];
+  const pitch = size + spacing;
+  const fit = (span: number, step: number) => Math.floor((span - size) / step + 1e-6) + 1;
+
+  const square: Array<[number, number]> = [];
+  for (let j = 0; j < fit(d, pitch); j++) {
+    for (let i = 0; i < fit(w, pitch); i++) square.push([i * pitch, -j * pitch]);
+  }
+  // Staggered rows sit closer together; odd rows shift half a pitch.
+  const staggered: Array<[number, number]> = [];
+  const rowPitch = pitch * Math.sin(Math.PI / 3);
+  for (let j = 0; j < fit(d, rowPitch); j++) {
+    const shift = j % 2 ? pitch / 2 : 0;
+    for (let i = 0; i < fit(w - shift, pitch); i++) staggered.push([shift + i * pitch, -j * rowPitch]);
+  }
+  const pts = staggered.length > square.length ? staggered : square;
+
+  // Centre the pattern on the origin.
+  const xs = pts.map((p) => p[0]);
+  const ys = pts.map((p) => p[1]);
+  const dx = (Math.min(...xs) + Math.max(...xs)) / 2;
+  const dy = (Math.min(...ys) + Math.max(...ys)) / 2;
+  return pts.map(([x, y]) => ({ item: 0, x: x - dx, y: y - dy }));
+}
 
 export type DrillBitHolderOptions = {
   cellsX: number;
   cellsY: number;
   heightUnits: number;
-  bits: ReadonlyArray<{ mm: number; label: string }>;
+  holes: HoleSet;
   holeDepth: number;
   clearance: number;
   spacing: number;
@@ -880,53 +1065,25 @@ export type DrillBitHolderOptions = {
   stackingLip: boolean;
   magnetHoles: boolean;
   screwHoles: boolean;
+  /** Engraving outlines per item, in the same order as `holes.items`; present when labels are wanted. */
+  labelPolygons?: ReadonlyArray<ReadonlyArray<Polygon>>;
 };
 
-/**
- * Single-pass shelf packing: sort bits largest-first, flow left-to-right top-to-bottom.
- * Good enough for typical drill sets; a real bin-packer is overkill.
- */
-export function layoutBits(
-  bits: ReadonlyArray<{ mm: number; label: string }>,
-  innerW: number,
-  innerD: number,
-  clearance: number,
-  spacing: number,
-): { placed: DrillHole[]; dropped: number } {
-  const sorted = [...bits].sort((a, b) => b.mm - a.mm);
-  const placed: DrillHole[] = [];
-
-  let cursorX = -innerW / 2;
-  let rowTopY = innerD / 2;
-  let rowMaxDia = 0;
-
-  for (const bit of sorted) {
-    const holeRadius = bit.mm / 2 + clearance;
-    const holeDia = holeRadius * 2;
-
-    if (cursorX + holeDia > innerW / 2 + 0.001) {
-      cursorX = -innerW / 2;
-      rowTopY -= rowMaxDia + spacing;
-      rowMaxDia = 0;
-    }
-
-    if (rowTopY - holeDia < -innerD / 2 - 0.001) {
-      return { placed, dropped: sorted.length - placed.length };
-    }
-
-    placed.push({
-      x: cursorX + holeRadius,
-      y: rowTopY - holeRadius,
-      diameter: bit.mm,
-      label: bit.label,
-    });
-    cursorX += holeDia + spacing;
-    if (holeDia > rowMaxDia) rowMaxDia = holeDia;
+function polygonsWidth(polys: ReadonlyArray<Polygon>): number {
+  let min = Infinity;
+  let max = -Infinity;
+  for (const p of polys) for (const [x] of p) {
+    if (x < min) min = x;
+    if (x > max) max = x;
   }
-
-  return { placed, dropped: 0 };
+  return Number.isFinite(min) ? max - min : 0;
 }
 
+/**
+ * Solid block with holes for a set of tools or cells (see bitSets). Holes are
+ * round or hex, cut no deeper than keeps a floor above the foot, and labelled
+ * sets get each size engraved under its hole.
+ */
 export function buildDrillBitHolder(
   m: ManifoldToplevel,
   spec: Spec,
@@ -940,23 +1097,39 @@ export function buildDrillBitHolder(
 
   const baseTiled = tileGrid(binBaseUnit(m, spec), opts.cellsX, opts.cellsY, gridUnit);
   const body = outlinePrism(m, spec, outerW, outerD, baseH, totalH);
-
   let result = baseTiled.add(body);
 
-  const usableW = outerW - 2 * opts.edgeClearance;
-  const usableD = outerD - 2 * opts.edgeClearance;
-  const { placed, dropped } = layoutBits(opts.bits, usableW, usableD, opts.clearance, opts.spacing);
+  const { shape, mode, items } = opts.holes;
+  const labels = mode === 'set' ? opts.labelPolygons : undefined;
+  const area = usableArea(spec, opts.cellsX, opts.cellsY, opts.edgeClearance);
+  const { placed, dropped } = layoutHoles(
+    {
+      mode,
+      widths: items.map((it) => holeWidth(shape, it.mm, opts.clearance)),
+      labelWidths: labels?.map(polygonsWidth),
+    },
+    area.w,
+    area.d,
+    opts.spacing,
+  );
 
-  if (placed.length > 0) {
-    const holeDepth = Math.min(opts.holeDepth, totalH - 1.0);
-    let holes: Manifold | null = null;
+  const depth = Math.min(opts.holeDepth, maxPocketDepth(spec, opts.heightUnits));
+  if (placed.length > 0 && depth > 0.2) {
+    const pieces: Manifold[] = [];
     for (const p of placed) {
-      const holeRadius = p.diameter / 2 + opts.clearance;
-      const cyl = m.Manifold.cylinder(holeDepth + 0.1, holeRadius, -1, 48, true)
-        .translate([p.x, p.y, totalH - holeDepth / 2 + 0.05]);
-      holes = holes ? holes.add(cyl) : cyl;
+      // Hex holes: a 6-sided cylinder with a vertex on +X, so its flats face front and back.
+      const radius = holeWidth(shape, items[p.item].mm, opts.clearance) / 2;
+      pieces.push(
+        m.Manifold.cylinder(depth + 0.1, radius, -1, shape === 'hex' ? 6 : 48)
+          .translate([p.x, p.y, totalH - depth]),
+      );
+      const text = labels?.[p.item];
+      if (p.label && text && text.length) {
+        const block = buildTextManifold(m, { polygons: text, depth: HOLE_LABEL_DEPTH + 0.1 });
+        if (block) pieces.push(block.translate([p.label.x, p.label.y, totalH - HOLE_LABEL_DEPTH]));
+      }
     }
-    if (holes) result = result.subtract(holes);
+    result = result.subtract(m.Manifold.union(pieces));
   }
 
   if (opts.stackingLip) {
@@ -966,5 +1139,6 @@ export function buildDrillBitHolder(
   const mountHoles = footHoles(m, spec, opts);
   if (mountHoles) result = result.subtract(mountHoles);
 
-  return { result, placed: placed.length, dropped };
+  const cut = depth > 0.2 ? placed.length : 0;
+  return { result, placed: cut, dropped: dropped + placed.length - cut };
 }

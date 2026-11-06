@@ -2,6 +2,7 @@ import { useDesignStore } from '@/store/designStore';
 import { useViewportStore } from '@/store/viewportStore';
 import { findPrinter, printerLabel } from '@/lib/printers';
 import { fmtLength } from '@/lib/units';
+import { BIT_SETS } from '@/lib/gridfinity/bitSets';
 import type { Bbox, BuildStats } from '@/lib/geometry/types';
 
 type Props = {
@@ -85,13 +86,17 @@ function describeContent(model: ReturnType<typeof useDesignStore.getState>['desi
     return parts.join(' · ');
   }
   if (model.kind === 'drillBitHolder') {
-    return `Drill bits · ${model.bitSet} · ${model.holeDepth}mm deep`;
+    const set = model.bitSet === 'custom' ? 'Custom sizes' : BIT_SETS[model.bitSet].label;
+    return `Holder · ${set} · ${model.holeDepth}mm deep`;
   }
   if (model.kind === 'screwOrganizer') {
     return `Screws · ${model.cols}×${model.rows} compartments · ${model.tiltDegrees}° tilt`;
   }
   if (model.kind === 'partsTray') {
-    return `Parts tray ${model.cellsX}×${model.cellsY}×${model.heightUnits}u · ${model.pocketCols}×${model.pocketRows} ${model.pocketShape} pockets Ø${model.pocketSize}mm`;
+    const size = model.pocketShape === 'circle'
+      ? `Ø${model.pocketSize}mm`
+      : `${model.pocketSize}×${model.pocketLength ?? model.pocketSize}mm`;
+    return `Pocket tray ${model.cellsX}×${model.cellsY}×${model.heightUnits}u · ${model.pocketCols}×${model.pocketRows} × ${size}`;
   }
   if (model.kind === 'lid') {
     return `Lid ${model.cellsX}×${model.cellsY} · ${model.lidClearance}mm clearance`;
