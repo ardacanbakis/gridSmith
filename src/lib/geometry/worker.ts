@@ -1,107 +1,15 @@
 import * as Comlink from 'comlink';
 import { getManifold } from './manifold';
-import {
-  buildBaseplate,
-  buildBin,
-  buildDrillBitHolder,
-  buildScrewOrganizer,
-  type LabelTextData,
-} from '@/lib/gridfinity/primitives';
+import { buildModel } from './buildModel';
 import { getLabelFont } from '@/lib/labels/font';
-import { textToPolygons } from '@/lib/labels/textToPolygons';
-import type { LabelStyle } from '@/lib/params/schema';
-import { buildSpec } from '@/lib/gridfinity/spec';
-import { bitsForSet } from '@/lib/gridfinity/bitSets';
 import { meshToBinaryStl } from './stl';
 import { meshTo3mf } from './threeMf';
-import type { GeometryRequest, GeometryResponse, GeometryWorkerApi, MeshData, BuildStats } from './types';
-import type { Manifold, ManifoldToplevel } from 'manifold-3d';
+import { meshToStep } from './step';
+import type { GeometryRequest, GeometryResponse, GeometryWorkerApi, MeshData } from './types';
+import type { Manifold } from 'manifold-3d';
 
-async function maybeBuildLabelText(
-  style: LabelStyle,
-  text: string,
-  heightMm: number,
-  depth: number,
-): Promise<LabelTextData | undefined> {
-  if (style !== 'embossText' && style !== 'engraveText') return undefined;
-  const trimmed = text.trim();
-  if (!trimmed) return undefined;
-  const font = await getLabelFont();
-  const polygons = textToPolygons(font, trimmed, heightMm);
-  if (polygons.length === 0) return undefined;
-  return { polygons, depth };
-}
-
-async function maybeBuildCompartmentLabels(
-  style: 'none' | 'emboss' | 'engrave',
-  labels: ReadonlyArray<string>,
-  cols: number,
-  heightMm: number,
-): Promise<ReadonlyArray<ReadonlyArray<import('@/lib/labels/textToPolygons').Polygon>> | undefined> {
-  if (style === 'none') return undefined;
-  if (labels.every((s) => !s.trim())) return undefined;
-  const font = await getLabelFont();
-  const out: Array<ReadonlyArray<import('@/lib/labels/textToPolygons').Polygon>> = [];
-  for (let i = 0; i < cols; i++) {
-    const text = (labels[i] ?? '').trim();
-    out.push(text ? textToPolygons(font, text, heightMm) : []);
-  }
-  return out;
-}
-
-async function buildManifold(request: GeometryRequest): Promise<{
-  m: ManifoldToplevel;
-  result: Manifold;
-  stats?: BuildStats;
-}> {
-  const m = await getManifold();
-  const spec = buildSpec(request.spec.gridUnit, request.spec.heightUnit);
-
-  if (request.model.kind === 'baseplate') {
-    return { m, result: buildBaseplate(m, spec, request.model) };
-  }
-  if (request.model.kind === 'bin') {
-    const labelText = await maybeBuildLabelText(
-      request.model.labelStyle,
-      request.model.labelText,
-      request.model.labelHeight,
-      request.model.labelDepth,
-    );
-    return { m, result: buildBin(m, spec, { ...request.model, labelText }) };
-  }
-  if (request.model.kind === 'screwOrganizer') {
-    const labelText = await maybeBuildLabelText(
-      request.model.labelStyle,
-      request.model.labelText,
-      request.model.labelHeight,
-      request.model.labelDepth,
-    );
-    const compartmentLabelPolygons = await maybeBuildCompartmentLabels(
-      request.model.compartmentLabelStyle,
-      request.model.compartmentLabels,
-      request.model.cols,
-      request.model.compartmentLabelHeight,
-    );
-    return {
-      m,
-      result: buildScrewOrganizer(m, spec, {
-        ...request.model,
-        labelText,
-        compartmentLabelPolygons,
-      }),
-    };
-  }
-
-  const bits = bitsForSet(request.model.bitSet, request.model.customBits);
-  const { result, placed, dropped } = buildDrillBitHolder(m, spec, {
-    ...request.model,
-    bits,
-  });
-  return {
-    m,
-    result,
-    stats: { placedHoles: placed, droppedHoles: dropped },
-  };
+async function buildManifold(request: GeometryRequest) {
+  return buildModel(await getManifold(), request, getLabelFont);
 }
 
 function toMeshData(manifold: Manifold): MeshData {
@@ -163,6 +71,13 @@ const api: GeometryWorkerApi = {
     const mesh = toMeshData(result);
     result.delete();
     return meshTo3mf(mesh, `gridsmith-${request.model.kind}`);
+  },
+
+  async exportStep(request: GeometryRequest): Promise<ArrayBuffer> {
+    const { result } = await buildManifold(request);
+    const mesh = toMeshData(result);
+    result.delete();
+    return meshToStep(mesh, `gridsmith-${request.model.kind}`);
   },
 };
 

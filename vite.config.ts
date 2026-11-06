@@ -13,6 +13,11 @@ export default defineConfig({
   worker: {
     format: 'es',
   },
+  build: {
+    // The lazily loaded Viewport chunk is ~850 kB, nearly all three.js, which can't
+    // be split further. Warn only if something grows well past that.
+    chunkSizeWarningLimit: 900,
+  },
   optimizeDeps: {
     exclude: ['manifold-3d'],
   },

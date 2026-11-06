@@ -1,19 +1,33 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useStore } from 'zustand';
 import { Header } from './components/Header';
 import { ParameterPanel } from './components/ParameterPanel';
-import { Viewport } from './components/Viewport';
 import { InfoOverlay } from './components/InfoOverlay';
 import { DesignLibraryModal } from './components/DesignLibraryModal';
+import { TemplateGallery } from './components/TemplateGallery';
+import { ShortcutHelp } from './components/ShortcutHelp';
+import { WelcomeScreen, useWelcomeScreen } from './components/WelcomeScreen';
 import { useDesignStore } from './store/designStore';
 import { useViewportStore } from './store/viewportStore';
+import { useMediaQuery } from './lib/useMediaQuery';
 import { getWorker } from './lib/geometry/workerClient';
-import type { Bbox, BuildStats, ExportFormat, MeshData } from './lib/geometry/types';
+import type { Bbox, BuildStats, ExportFormat, GeometryRequest, MeshData } from './lib/geometry/types';
 import { downloadBlob } from './lib/geometry/stl';
 
+// three.js and the React-Three renderer are about two-thirds of the bundle. Loading the
+// viewport as its own chunk lets the rest of the UI render while it downloads, and keeps
+// that chunk cached across deploys that only change app code.
+const Viewport = lazy(() => import('./components/Viewport').then((mod) => ({ default: mod.Viewport })));
+
 export default function App() {
+  const { t } = useTranslation();
+  const { showWelcome, dismiss, show: showWelcomeScreen } = useWelcomeScreen();
   const design = useDesignStore((s) => s.design);
   const duoSidebar = useViewportStore((s) => s.duoView);
+  // Two sidebars plus a viewport need laptop width; below that, one sidebar holds everything.
+  const wide = useMediaQuery('(min-width: 1024px)');
+  const duo = duoSidebar && wide;
   const fit = useViewportStore((s) => s.fit);
   const recenter = useViewportStore((s) => s.recenter);
   const undo = useStore(useDesignStore.temporal, (s) => s.undo);
@@ -26,39 +40,47 @@ export default function App() {
   const [exporting, setExporting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [libraryOpen, setLibraryOpen] = useState(false);
-  const buildSeq = useRef(0);
+  const [templateOpen, setTemplateOpen] = useState(false);
+  const [shortcutOpen, setShortcutOpen] = useState(false);
+  const pendingBuild = useRef<GeometryRequest | null>(null);
+  const buildLoopRunning = useRef(false);
   const firstBuild = useRef(true);
 
   useEffect(() => {
-    const seq = ++buildSeq.current;
+    pendingBuild.current = { model: design.model, spec: design.spec };
+    if (buildLoopRunning.current) return;
+    buildLoopRunning.current = true;
     setBuilding(true);
-    setError(null);
 
-    getWorker()
-      .build({ model: design.model, spec: design.spec })
-      .then((res) => {
-        if (seq !== buildSeq.current) return;
-        if (res.ok) {
-          setMesh(res.mesh);
-          setBbox(res.bbox);
-          setStats(res.stats ?? null);
-          if (firstBuild.current) {
-            firstBuild.current = false;
-            // Defer one frame so Bounds has the new mesh registered.
-            requestAnimationFrame(() => fit());
+    // Latest-wins: one build at a time, and edits that land mid-build replace
+    // whatever was queued — a slider drag never piles up stale rebuilds.
+    void (async () => {
+      while (pendingBuild.current) {
+        const request = pendingBuild.current;
+        pendingBuild.current = null;
+        try {
+          const res = await getWorker().build(request);
+          if (res.ok) {
+            setMesh(res.mesh);
+            setBbox(res.bbox);
+            setStats(res.stats ?? null);
+            setError(null);
+            if (firstBuild.current) {
+              firstBuild.current = false;
+              // Defer one frame so Bounds has the new mesh registered.
+              requestAnimationFrame(() => fit());
+            }
+          } else if (!pendingBuild.current) {
+            setError(res.error);
           }
-        } else {
-          setError(res.error);
+        } catch (err) {
+          if (!pendingBuild.current) setError(err instanceof Error ? err.message : String(err));
         }
-      })
-      .catch((err) => {
-        if (seq !== buildSeq.current) return;
-        setError(err instanceof Error ? err.message : String(err));
-      })
-      .finally(() => {
-        if (seq === buildSeq.current) setBuilding(false);
-      });
-  }, [design.model, design.spec]);
+      }
+      buildLoopRunning.current = false;
+      setBuilding(false);
+    })();
+  }, [design.model, design.spec, fit]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -79,6 +101,15 @@ export default function App() {
       } else if (!mod && e.key.toLowerCase() === 'r') {
         e.preventDefault();
         recenter();
+      } else if (!mod && e.key.toLowerCase() === 't') {
+        e.preventDefault();
+        setTemplateOpen((v) => !v);
+      } else if (!mod && e.key.toLowerCase() === 'l') {
+        e.preventDefault();
+        setLibraryOpen((v) => !v);
+      } else if (!mod && e.key === '?') {
+        e.preventDefault();
+        setShortcutOpen((v) => !v);
       }
     };
     window.addEventListener('keydown', onKey);
@@ -90,12 +121,15 @@ export default function App() {
     try {
       const worker = getWorker();
       const request = { model: design.model, spec: design.spec };
-      const buffer = format === '3mf'
-        ? await worker.exportThreeMf(request)
-        : await worker.exportStl(request);
-      const name = filenameFor(design.model, format);
-      const mime = format === '3mf' ? 'model/3mf' : 'model/stl';
-      downloadBlob(buffer, name, mime);
+      const buffer =
+        format === '3mf'  ? await worker.exportThreeMf(request) :
+        format === 'step' ? await worker.exportStep(request) :
+                            await worker.exportStl(request);
+      const mime =
+        format === '3mf'  ? 'model/3mf' :
+        format === 'step' ? 'application/octet-stream' :
+                            'model/stl';
+      downloadBlob(buffer, filenameFor(design.model, format), mime);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -104,35 +138,51 @@ export default function App() {
   };
 
   return (
+    <>
+    {showWelcome && <WelcomeScreen onDismiss={dismiss} />}
+    <TemplateGallery open={templateOpen} onClose={() => setTemplateOpen(false)} />
+    <ShortcutHelp open={shortcutOpen} onClose={() => setShortcutOpen(false)} />
     <div className="h-full flex flex-col">
       <Header
         onExport={onExport}
         exporting={exporting}
         onOpenLibrary={() => setLibraryOpen(true)}
+        onOpenWelcome={showWelcomeScreen}
+        onOpenTemplates={() => setTemplateOpen(true)}
       />
-      <div className="flex-1 flex min-h-0">
-        <ParameterPanel mode={duoSidebar ? 'core' : 'all'} side="left" />
-        <main className="flex-1 relative min-w-0">
-          <Viewport mesh={mesh} loading={building} gridUnit={design.spec.gridUnit} />
+      {/* Phones: viewport on top, parameters scroll below. md and up: side by side. */}
+      <div className="flex-1 flex flex-col md:flex-row min-h-0">
+        <ParameterPanel mode={duo ? 'core' : 'all'} side="left" />
+        <main className="relative min-w-0 order-first h-[42vh] min-h-[240px] shrink-0 md:order-none md:h-auto md:min-h-0 md:shrink md:flex-1">
+          <Suspense
+            fallback={
+              <div className="w-full h-full grid place-items-center bg-bg text-xs text-text-muted">
+                Loading 3D view…
+              </div>
+            }
+          >
+            <Viewport mesh={mesh} loading={building} gridUnit={design.spec.gridUnit} />
+          </Suspense>
           <InfoOverlay bbox={bbox} stats={stats} />
           {stats && stats.droppedHoles !== undefined && stats.droppedHoles > 0 && (
-            <div className="absolute top-3 left-1/2 -translate-x-1/2 panel rounded px-3 py-2 text-xs">
-              <span className="warn-badge mr-2">too many bits</span>
+            <div className="absolute top-3 left-1/2 -translate-x-1/2 w-max max-w-[calc(100%-1.5rem)] panel rounded px-3 py-2 text-xs">
+              <span className="warn-badge mr-2">{t('warning.tooManyBits')}</span>
               <span className="text-text-muted">
-                {stats.placedHoles} placed · {stats.droppedHoles} dropped — increase bin size or reduce spacing.
+                {t('warning.tooManyBitsDetail', { placed: stats.placedHoles, dropped: stats.droppedHoles })}
               </span>
             </div>
           )}
           {error && (
-            <div className="absolute bottom-3 right-3 panel rounded px-3 py-2 text-xs text-red-400 border border-red-500/40">
+            <div className="absolute bottom-3 right-3 max-w-[calc(100%-1.5rem)] panel rounded px-3 py-2 text-xs text-red-400 border border-red-500/40">
               {error}
             </div>
           )}
         </main>
-        {duoSidebar && <ParameterPanel mode="finish" side="right" />}
+        {duo && <ParameterPanel mode="finish" side="right" />}
       </div>
       <DesignLibraryModal open={libraryOpen} onClose={() => setLibraryOpen(false)} />
     </div>
+    </>
   );
 }
 

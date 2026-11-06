@@ -34,10 +34,11 @@ export type GeometryResponse =
     }
   | { ok: false; error: string };
 
-export type ExportFormat = 'stl' | '3mf';
+export type ExportFormat = 'stl' | '3mf' | 'step';
 
 export interface GeometryWorkerApi {
   build(request: GeometryRequest): Promise<GeometryResponse>;
   exportStl(request: GeometryRequest): Promise<ArrayBuffer>;
   exportThreeMf(request: GeometryRequest): Promise<ArrayBuffer>;
+  exportStep(request: GeometryRequest): Promise<ArrayBuffer>;
 }

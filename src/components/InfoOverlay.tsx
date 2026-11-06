@@ -2,6 +2,7 @@ import { useDesignStore } from '@/store/designStore';
 import { useViewportStore } from '@/store/viewportStore';
 import { findPrinter, printerLabel } from '@/lib/printers';
 import { fmtLength } from '@/lib/units';
+import { BIT_SETS } from '@/lib/gridfinity/bitSets';
 import type { Bbox, BuildStats } from '@/lib/geometry/types';
 
 type Props = {
@@ -11,6 +12,23 @@ type Props = {
 
 /** Density in g/cm³ for typical filaments. PLA is the assumed default. */
 const PLA_DENSITY = 1.24;
+
+/**
+ * Rough print-time estimate.
+ * Assumes 0.4 mm nozzle / 0.2 mm layers / 50 mm/s → peak 4 mm³/s,
+ * discounted by ~50% for acceleration, retracts, and travel → ~2 mm³/s average.
+ */
+function estimatePrintMinutes(volumeMm3: number): number {
+  return volumeMm3 / (2 * 60); // 2 mm³/s → mm³/min
+}
+
+function fmtMinutes(min: number): string {
+  const rounded = Math.max(1, Math.round(min));
+  if (rounded < 60) return `${rounded} min`;
+  const h = Math.floor(rounded / 60);
+  const m = rounded % 60;
+  return m === 0 ? `${h} h` : `${h} h ${m} min`;
+}
 
 export function InfoOverlay({ bbox, stats }: Props) {
   const { design } = useDesignStore();
@@ -39,11 +57,11 @@ export function InfoOverlay({ bbox, stats }: Props) {
   const volumeText = stats?.volumeMm3
     ? `${(stats.volumeMm3 / 1000).toFixed(1)} cm³ · ~${
         ((stats.volumeMm3 / 1000) * PLA_DENSITY).toFixed(1)
-      } g PLA`
+      } g PLA · ~${fmtMinutes(estimatePrintMinutes(stats.volumeMm3))}`
     : null;
 
   return (
-    <div className="absolute bottom-3 left-3 panel rounded-md px-3 py-2 text-xs font-mono leading-tight pointer-events-none">
+    <div className="absolute bottom-2 left-2 md:bottom-3 md:left-3 panel rounded-md px-2 py-1.5 md:px-3 md:py-2 text-[10px] md:text-xs font-mono leading-tight pointer-events-none">
       <div className="text-text">{dimText}</div>
       {content && <div className="text-text-muted">{content}</div>}
       {volumeText && <div className="text-text-dim">{volumeText}</div>}
@@ -68,10 +86,20 @@ function describeContent(model: ReturnType<typeof useDesignStore.getState>['desi
     return parts.join(' · ');
   }
   if (model.kind === 'drillBitHolder') {
-    return `Drill bits · ${model.bitSet} · ${model.holeDepth}mm deep`;
+    const set = model.bitSet === 'custom' ? 'Custom sizes' : BIT_SETS[model.bitSet].label;
+    return `Holder · ${set} · ${model.holeDepth}mm deep`;
   }
   if (model.kind === 'screwOrganizer') {
     return `Screws · ${model.cols}×${model.rows} compartments · ${model.tiltDegrees}° tilt`;
+  }
+  if (model.kind === 'partsTray') {
+    const size = model.pocketShape === 'circle'
+      ? `Ø${model.pocketSize}mm`
+      : `${model.pocketSize}×${model.pocketLength ?? model.pocketSize}mm`;
+    return `Pocket tray ${model.cellsX}×${model.cellsY}×${model.heightUnits}u · ${model.pocketCols}×${model.pocketRows} × ${size}`;
+  }
+  if (model.kind === 'lid') {
+    return `Lid ${model.cellsX}×${model.cellsY} · ${model.lidClearance}mm clearance`;
   }
   return null;
 }

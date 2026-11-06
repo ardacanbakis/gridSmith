@@ -12,6 +12,23 @@ export const BitSetIdSchema = z.enum([
   'fractional-inch',
   'letter',
   'number',
+  'hex-metric',
+  'hex-imperial',
+  'hex-bit-quarter',
+  'hex-bit-4mm',
+  'router-quarter',
+  'router-eighth',
+  'router-half',
+  'router-6mm',
+  'router-8mm',
+  'router-12mm',
+  'battery-aa',
+  'battery-aaa',
+  'battery-18650-4',
+  'battery-21700',
+  'battery-18650-8',
+  'battery-cr2032',
+  'battery-mixed',
   'custom',
 ]);
 export type BitSetId = z.infer<typeof BitSetIdSchema>;
@@ -60,6 +77,8 @@ export const DrillBitHolderParamsSchema = z.object({
   stackingLip: z.boolean().default(true),
   magnetHoles: z.boolean().default(false),
   screwHoles: z.boolean().default(false),
+  /** Engrave each hole's size next to it (sets only; fills are all one size). */
+  holeLabels: z.boolean().default(true),
 });
 export type DrillBitHolderParams = z.infer<typeof DrillBitHolderParamsSchema>;
 
@@ -89,11 +108,47 @@ export const ScrewOrganizerParamsSchema = z.object({
 });
 export type ScrewOrganizerParams = z.infer<typeof ScrewOrganizerParamsSchema>;
 
+export const PartsTrayParamsSchema = z.object({
+  kind: z.literal('partsTray'),
+  cellsX: z.number().int().min(1).max(20).default(2),
+  cellsY: z.number().int().min(1).max(20).default(2),
+  heightUnits: z.number().int().min(1).max(30).default(2),
+  /** 'square' is any rectangle: pocketSize across (X) by pocketLength front-to-back (Y). */
+  pocketShape: z.enum(['circle', 'square']).default('circle'),
+  /** Circle diameter, or rectangle width (X). */
+  pocketSize: z.number().min(3).max(150).default(22),
+  /** Rectangle length (Y); unset means square. Thin values make upright slots. */
+  pocketLength: z.number().min(1).max(150).optional(),
+  cornerRadius: z.number().min(0).max(20).default(1),
+  /** Rounded pocket floor, so small parts slide out with a fingertip. */
+  roundedBottom: z.boolean().default(false),
+  pocketDepth: z.number().min(1).max(50).default(10),
+  pocketCols: z.number().int().min(1).max(40).default(3),
+  pocketRows: z.number().int().min(1).max(40).default(3),
+  pocketSpacing: z.number().min(0.5).max(10).default(2),
+  edgeClearance: z.number().min(1).max(15).default(3),
+  stackingLip: z.boolean().default(false),
+  magnetHoles: z.boolean().default(false),
+  screwHoles: z.boolean().default(false),
+});
+export type PartsTrayParams = z.infer<typeof PartsTrayParamsSchema>;
+
+export const LidParamsSchema = z.object({
+  kind: z.literal('lid'),
+  cellsX: z.number().int().min(1).max(20).default(1),
+  cellsY: z.number().int().min(1).max(20).default(1),
+  wallThickness: z.number().min(0.8).max(4).default(1.2),
+  lidClearance: z.number().min(0).max(0.5).default(0.15),
+});
+export type LidParams = z.infer<typeof LidParamsSchema>;
+
 export const ModelParamsSchema = z.discriminatedUnion('kind', [
   BaseplateParamsSchema,
   BinParamsSchema,
   DrillBitHolderParamsSchema,
   ScrewOrganizerParamsSchema,
+  PartsTrayParamsSchema,
+  LidParamsSchema,
 ]);
 export type ModelParams = z.infer<typeof ModelParamsSchema>;
 

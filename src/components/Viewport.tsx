@@ -31,7 +31,6 @@ function PartMesh({ data, color }: { data: MeshData; color: string }) {
     const g = new THREE.BufferGeometry();
     g.setAttribute('position', new THREE.BufferAttribute(data.vertices, 3));
     g.setIndex(new THREE.BufferAttribute(data.indices, 1));
-    g.computeVertexNormals();
     g.computeBoundingBox();
     return g;
   }, [data]);
@@ -42,6 +41,7 @@ function PartMesh({ data, color }: { data: MeshData; color: string }) {
     <mesh geometry={geometry} rotation={[-Math.PI / 2, 0, 0]} castShadow receiveShadow>
       <meshPhysicalMaterial
         color={color}
+        flatShading
         metalness={0.05}
         roughness={0.42}
         clearcoat={0.18}

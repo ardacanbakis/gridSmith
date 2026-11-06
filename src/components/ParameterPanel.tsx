@@ -1,17 +1,27 @@
-import { useState, type ReactNode } from 'react';
-import { Box, ChevronDown, ChevronRight, Drill, LayoutGrid, Plus, Wrench, X } from 'lucide-react';
+import { useRef, useState, type ReactNode } from 'react';
+import { Archive, Box, ChevronDown, ChevronRight, Layers, LayoutGrid, PanelTop, Plus, Wrench, X } from 'lucide-react';
 import { useDesignStore } from '@/store/designStore';
 import {
   BaseplateParamsSchema,
   BinParamsSchema,
   DrillBitHolderParamsSchema,
+  LidParamsSchema,
   ScrewOrganizerParamsSchema,
+  PartsTrayParamsSchema,
   type CompartmentLabelStyle,
   type LabelStyle,
   type BitSetId,
+  type Units,
 } from '@/lib/params/schema';
-import { STANDARD, isStandardSpec } from '@/lib/gridfinity/spec';
-import { BIT_SETS } from '@/lib/gridfinity/bitSets';
+import { STANDARD, buildSpec, isStandardSpec } from '@/lib/gridfinity/spec';
+import {
+  LABEL_SKIN,
+  heightUnitsForDepth,
+  maxPocketDepth,
+  trayCapacity,
+} from '@/lib/gridfinity/primitives';
+import { BIT_SETS, holeSetFor, type BitSetGroup } from '@/lib/gridfinity/bitSets';
+import { previewHolderLayout } from '@/lib/templates/gallery';
 import { fmtLength } from '@/lib/units';
 
 export type PanelMode = 'all' | 'core' | 'finish';
@@ -19,11 +29,13 @@ export type PanelSide = 'left' | 'right';
 
 type ModelKind = ReturnType<typeof useDesignStore.getState>['design']['model']['kind'];
 
-const MODEL_OPTIONS: Array<{ kind: ModelKind; label: string; icon: ReactNode }> = [
-  { kind: 'bin', label: 'Bin', icon: <Box size={16} /> },
-  { kind: 'baseplate', label: 'Plate', icon: <LayoutGrid size={16} /> },
-  { kind: 'drillBitHolder', label: 'Drill bits', icon: <Drill size={16} /> },
-  { kind: 'screwOrganizer', label: 'Screws', icon: <Wrench size={16} /> },
+const MODEL_OPTIONS: Array<{ kind: ModelKind; label: string; description: string; icon: ReactNode }> = [
+  { kind: 'bin', label: 'Bin', description: 'Hollow storage bin with dividers & labels', icon: <Box size={16} /> },
+  { kind: 'lid', label: 'Lid', description: 'Friction-fit lid for any bin with a stacking lip', icon: <PanelTop size={16} /> },
+  { kind: 'baseplate', label: 'Plate', description: 'Gridfinity-compatible baseplate', icon: <LayoutGrid size={16} /> },
+  { kind: 'drillBitHolder', label: 'Holders', description: 'Labelled holes for drill bits, hex keys, bits & batteries', icon: <Archive size={16} /> },
+  { kind: 'screwOrganizer', label: 'Screws', description: 'Divided tray with tilt & per-column labels', icon: <Wrench size={16} /> },
+  { kind: 'partsTray', label: 'Pockets', description: 'Cups and upright slots — SD cards, coin cells, dice, parts', icon: <Layers size={16} /> },
 ];
 
 function ModelTypePicker({
@@ -33,24 +45,32 @@ function ModelTypePicker({
   value: ModelKind;
   onChange: (k: ModelKind) => void;
 }) {
+  const active = MODEL_OPTIONS.find((o) => o.kind === value);
   return (
-    <div className="grid grid-cols-4 gap-1 p-1 bg-bg-elevated rounded-md border border-border">
-      {MODEL_OPTIONS.map((opt) => (
-        <button
-          key={opt.kind}
-          onClick={() => onChange(opt.kind)}
-          className={[
-            'flex flex-col items-center justify-center gap-1 py-2 rounded-md text-[11px] font-medium transition-colors',
-            value === opt.kind
-              ? 'bg-accent text-accent-fg shadow-sm'
-              : 'text-text-muted hover:text-text hover:bg-bg-panel',
-          ].join(' ')}
-          title={opt.label}
-        >
-          {opt.icon}
-          <span>{opt.label}</span>
-        </button>
-      ))}
+    <div className="flex flex-col gap-1.5">
+      <div className="grid grid-cols-3 gap-1 p-1 bg-bg-elevated rounded-md border border-border">
+        {MODEL_OPTIONS.map((opt) => (
+          <button
+            key={opt.kind}
+            onClick={() => onChange(opt.kind)}
+            className={[
+              'flex flex-col items-center justify-center gap-1 py-2 rounded-md text-[11px] font-medium transition-colors',
+              value === opt.kind
+                ? 'bg-accent text-accent-fg shadow-sm'
+                : 'text-text-muted hover:text-text hover:bg-bg-panel',
+            ].join(' ')}
+            title={opt.description}
+          >
+            {opt.icon}
+            <span>{opt.label}</span>
+          </button>
+        ))}
+      </div>
+      {active && (
+        <p className="text-[11px] text-text-dim text-center leading-tight px-1">
+          {active.description}
+        </p>
+      )}
     </div>
   );
 }
@@ -110,13 +130,56 @@ function NumberField({
   disabled?: boolean;
   format?: (v: number) => string;
 }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
   const display = format ? format(value) : `${value}${suffix ? ` ${suffix}` : ''}`;
+
+  const commitDraft = () => {
+    const parsed = parseFloat(draft);
+    if (!isNaN(parsed)) {
+      onChange(Math.min(max, Math.max(min, parsed)));
+    }
+    setEditing(false);
+  };
+
   return (
-    <label className="flex flex-col gap-1">
-      <span className="label flex justify-between normal-case">
+    <div className="flex flex-col gap-1">
+      <div className="label flex justify-between normal-case items-center">
         <span>{label}</span>
-        <span className="tabular text-text">{display}</span>
-      </span>
+        {editing ? (
+          <input
+            ref={inputRef}
+            type="number"
+            className="input w-24 text-right text-xs py-0.5 px-1.5 h-6"
+            value={draft}
+            min={min}
+            max={max}
+            step={step}
+            autoFocus
+            onChange={(e) => setDraft(e.target.value)}
+            onBlur={commitDraft}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') commitDraft();
+              if (e.key === 'Escape') setEditing(false);
+            }}
+          />
+        ) : (
+          <button
+            type="button"
+            disabled={disabled}
+            title="Click to type a value"
+            onClick={() => {
+              setDraft(String(value));
+              setEditing(true);
+            }}
+            className="tabular text-text hover:text-accent hover:underline decoration-dotted underline-offset-2 disabled:cursor-default disabled:no-underline disabled:hover:text-text"
+          >
+            {display}
+          </button>
+        )}
+      </div>
       <input
         type="range"
         min={min}
@@ -127,7 +190,7 @@ function NumberField({
         onChange={(e) => onChange(Number(e.target.value))}
         className="accent-accent"
       />
-    </label>
+    </div>
   );
 }
 
@@ -193,6 +256,164 @@ function SegmentedControl<T extends string>({
   );
 }
 
+/**
+ * Shown when holes or pockets are set deeper than the part's height allows;
+ * the geometry stops them above the foot. Offers the height that would fit.
+ */
+function DepthNote({
+  depth,
+  max,
+  units,
+  onAddHeight,
+}: {
+  depth: number;
+  max: number;
+  units: Units;
+  onAddHeight: () => void;
+}) {
+  if (depth <= max + 1e-9) return null;
+  return (
+    <div className="flex items-start gap-2">
+      <p className="text-xs text-warn leading-snug flex-1">
+        Cut {fmtLength(max, units, 1)} deep — the part isn't tall enough for {fmtLength(depth, units, 1)}.
+      </p>
+      <button type="button" className="btn text-xs shrink-0" onClick={onAddHeight}>
+        Add height
+      </button>
+    </div>
+  );
+}
+
+/** Shown when a label is deeper than the wall allows; the geometry caps it to keep a skin. */
+function LabelDepthNote({ depth, wall, units }: { depth: number; wall: number; units: Units }) {
+  const cap = Math.max(0, wall - LABEL_SKIN);
+  if (depth <= cap + 1e-9) return null;
+  return (
+    <p className="text-xs text-warn leading-snug">
+      Capped at {fmtLength(cap, units, 2)} so {fmtLength(LABEL_SKIN, units, 1)} of wall stays behind the label.
+      Thicken the wall to go deeper.
+    </p>
+  );
+}
+
+const BROWSER_TABS: Array<{ id: BitSetGroup; label: string }> = [
+  { id: 'drill', label: 'Drill bits' },
+  { id: 'hex', label: 'Hex' },
+  { id: 'router', label: 'Router' },
+  { id: 'battery', label: 'Batteries' },
+];
+
+/** Sets offered in a tab: not legacy aliases, and not inch-based ones while working in mm. */
+function setsInTab(group: BitSetGroup, units: Units) {
+  return Object.values(BIT_SETS).filter(
+    (s) => s.group === group && !s.legacy && (!s.imperial || units === 'imperial'),
+  );
+}
+
+function TemplateBrowser({
+  value,
+  units,
+  onChange,
+}: {
+  value: BitSetId;
+  units: Units;
+  onChange: (id: BitSetId) => void;
+}) {
+  const [activeTab, setActiveTab] = useState<BitSetGroup>(
+    () => (value === 'custom' ? 'drill' : BIT_SETS[value].group),
+  );
+  const [search, setSearch] = useState('');
+
+  const entries = setsInTab(activeTab, units);
+
+  const q = search.trim().toLowerCase();
+  const visible = q
+    ? entries.filter((s) => `${s.label} ${s.description}`.toLowerCase().includes(q))
+    : entries;
+
+  return (
+    <div className="flex flex-col gap-2">
+      {/* Tabs */}
+      <div className="grid grid-cols-4 gap-0.5 p-0.5 bg-bg-elevated rounded-md border border-border">
+        {BROWSER_TABS.map((tab) => {
+          const count = setsInTab(tab.id, units).length;
+          return (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => { setActiveTab(tab.id); setSearch(''); }}
+              className={[
+                'py-1 rounded text-[11px] font-medium transition-colors flex flex-col items-center gap-0',
+                activeTab === tab.id
+                  ? 'bg-accent text-accent-fg shadow-sm'
+                  : 'text-text-muted hover:text-text',
+              ].join(' ')}
+            >
+              <span>{tab.label}</span>
+              <span className={`text-[10px] ${activeTab === tab.id ? 'text-accent-fg/70' : 'text-text-dim'}`}>{count}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Search */}
+      <input
+        type="text"
+        className="input text-xs py-1"
+        placeholder="Filter…"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+      />
+
+      {/* List */}
+      <div className="flex flex-col gap-1">
+        {visible.map((bs) => {
+          const { id } = bs;
+          const selected = value === id;
+          const count = bs.mode === 'fill' ? 'fills block' : `${bs.items.length}`;
+          return (
+            <button
+              key={id}
+              type="button"
+              onClick={() => onChange(id)}
+              className={[
+                'text-left px-2.5 py-2 rounded-md border transition-colors',
+                selected
+                  ? 'border-accent bg-accent/10'
+                  : 'border-border hover:border-border-strong hover:bg-bg-elevated',
+              ].join(' ')}
+            >
+              <div className="flex items-center justify-between gap-1">
+                <p className={`text-xs font-medium leading-tight ${selected ? 'text-accent' : 'text-text'}`}>{bs.label}</p>
+                <span className={`text-[10px] tabular shrink-0 ${selected ? 'text-accent' : 'text-text-dim'}`}>{count}</span>
+              </div>
+              <p className="text-[11px] text-text-dim mt-0.5">{bs.description}</p>
+            </button>
+          );
+        })}
+        {visible.length === 0 && (
+          <p className="text-xs text-text-dim py-2 text-center">No presets match.</p>
+        )}
+
+        {/* Custom option */}
+        <button
+          type="button"
+          onClick={() => onChange('custom')}
+          className={[
+            'text-left px-2.5 py-2 rounded-md border transition-colors',
+            value === 'custom'
+              ? 'border-accent bg-accent/10'
+              : 'border-border hover:border-border-strong hover:bg-bg-elevated',
+          ].join(' ')}
+        >
+          <p className={`text-xs font-medium ${value === 'custom' ? 'text-accent' : 'text-text'}`}>Custom list…</p>
+          <p className="text-[11px] text-text-dim mt-0.5">Your own round hole sizes in mm, labelled.</p>
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function CustomBitsEditor({
   bits,
   onChange,
@@ -247,23 +468,26 @@ function CustomBitsEditor({
   );
 }
 
-const COMPARTMENT_LABEL_PRESETS: Array<{ id: string; label: string; values: string[] }> = [
+const COMPARTMENT_LABEL_PRESETS: Array<{ id: string; label: string; values: string[]; imperialOnly?: true }> = [
   { id: 'metric-coarse', label: 'Metric M2–M8', values: ['M2', 'M3', 'M4', 'M5', 'M6', 'M8'] },
   { id: 'metric-fine', label: 'Metric M2–M12', values: ['M2', 'M2.5', 'M3', 'M4', 'M5', 'M6', 'M8', 'M10', 'M12'] },
-  { id: 'imperial-num', label: '#4 / #6 / #8 / #10', values: ['#4', '#6', '#8', '#10'] },
-  { id: 'fractional', label: '1/4 / 5/16 / 3/8 / 1/2', values: ['1/4"', '5/16"', '3/8"', '1/2"'] },
-  { id: 'numbers', label: 'Numbers 1–', values: Array.from({ length: 10 }, (_, i) => `${i + 1}`) },
+  { id: 'imperial-num', label: '#4 / #6 / #8 / #10', values: ['#4', '#6', '#8', '#10'], imperialOnly: true },
+  { id: 'fractional', label: '1/4 / 5/16 / 3/8 / 1/2', values: ['1/4"', '5/16"', '3/8"', '1/2"'], imperialOnly: true },
+  { id: 'numbers', label: 'Numbers 1–10', values: Array.from({ length: 10 }, (_, i) => `${i + 1}`) },
 ];
 
 function CompartmentLabelsEditor({
   cols,
   values,
   onChange,
+  units,
 }: {
   cols: number;
   values: string[];
   onChange: (v: string[]) => void;
+  units: Units;
 }) {
+  const availablePresets = COMPARTMENT_LABEL_PRESETS.filter((p) => !p.imperialOnly || units === 'imperial');
   const padded = Array.from({ length: cols }, (_, i) => values[i] ?? '');
   const update = (i: number, v: string) => {
     const next = [...padded];
@@ -278,7 +502,7 @@ function CompartmentLabelsEditor({
           className="input flex-1 text-xs"
           defaultValue=""
           onChange={(e) => {
-            const preset = COMPARTMENT_LABEL_PRESETS.find((p) => p.id === e.target.value);
+            const preset = availablePresets.find((p) => p.id === e.target.value);
             if (preset) onChange(preset.values.slice(0, cols));
             e.target.value = '';
           }}
@@ -286,7 +510,7 @@ function CompartmentLabelsEditor({
           <option value="" disabled>
             Auto-fill preset…
           </option>
-          {COMPARTMENT_LABEL_PRESETS.map((p) => (
+          {availablePresets.map((p) => (
             <option key={p.id} value={p.id}>
               {p.label}
             </option>
@@ -326,15 +550,28 @@ type Props = {
 export function ParameterPanel({ mode = 'all', side = 'left' }: Props) {
   const { design, setModel, switchKind, setSpec } = useDesignStore();
   const { model, spec, units } = design;
+  // Full derived dimensions (foot height etc.) for depth limits and fit counts.
+  const geo = buildSpec(spec.gridUnit, spec.heightUnit);
   const specIsStandard = isStandardSpec(spec.gridUnit, spec.heightUnit);
   const len = (digits = 1) => (v: number) => fmtLength(v, units, digits);
+
+  // Track which non-standard spec the user has dismissed the warning for.
+  const [dismissedSpec, setDismissedSpec] = useState<{ gridUnit: number; heightUnit: number } | null>(null);
+  const warnVisible =
+    !specIsStandard &&
+    !(dismissedSpec?.gridUnit === spec.gridUnit && dismissedSpec?.heightUnit === spec.heightUnit);
 
   const showCore = mode === 'all' || mode === 'core';
   const showFinish = mode === 'all' || mode === 'finish';
 
   return (
     <aside
-      className={`w-72 shrink-0 panel ${side === 'left' ? 'border-r' : 'border-l'} flex flex-col`}
+      className={[
+        'panel flex flex-col min-h-0',
+        // Phones: full width below the viewport, filling what's left. md+: fixed-width side column.
+        'w-full flex-1 border-t md:w-72 md:flex-none md:border-t-0',
+        side === 'left' ? 'md:border-r' : 'md:border-l',
+      ].join(' ')}
     >
       {showCore && (
         <div className="p-3 border-b border-border">
@@ -358,20 +595,32 @@ export function ParameterPanel({ mode = 'all', side = 'left' }: Props) {
               onChange={(v) => setSpec({ gridUnit: v })}
               format={len(1)}
             />
-            <NumberField
-              label="Height unit"
-              value={spec.heightUnit}
-              min={2}
-              max={30}
-              step={0.5}
-              onChange={(v) => setSpec({ heightUnit: v })}
-              format={len(1)}
-            />
-            {!specIsStandard && (
-              <p className="text-xs text-warn leading-snug">
-                Deviates from Gridfinity spec ({STANDARD.gridUnit} mm × {STANDARD.heightUnit} mm).
-                Parts won't mate with stock bins.
-              </p>
+            {model.kind !== 'baseplate' && (
+              <NumberField
+                label="Height unit"
+                value={spec.heightUnit}
+                min={2}
+                max={30}
+                step={0.5}
+                onChange={(v) => setSpec({ heightUnit: v })}
+                format={len(1)}
+              />
+            )}
+            {warnVisible && (
+              <div className="flex items-start gap-1.5">
+                <p className="text-xs text-warn leading-snug flex-1">
+                  Deviates from Gridfinity spec ({STANDARD.gridUnit} mm × {STANDARD.heightUnit} mm).
+                  Parts won't mate with stock bins.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setDismissedSpec({ gridUnit: spec.gridUnit, heightUnit: spec.heightUnit })}
+                  className="text-warn hover:text-text-muted shrink-0 mt-0.5"
+                  title="Dismiss"
+                >
+                  <X size={12} />
+                </button>
+              </div>
             )}
           </Section>
         )}
@@ -445,7 +694,7 @@ export function ParameterPanel({ mode = 'all', side = 'left' }: Props) {
             )}
 
             {showFinish && (
-              <Section title="Label">
+              <Section title="Label" defaultOpen={false}>
                 <SegmentedControl<LabelStyle>
                   value={model.labelStyle}
                   onChange={(v) => setModel(ScrewOrganizerParamsSchema.parse({ ...model, labelStyle: v }))}
@@ -489,6 +738,7 @@ export function ParameterPanel({ mode = 'all', side = 'left' }: Props) {
                       onChange={(v) => setModel(ScrewOrganizerParamsSchema.parse({ ...model, labelDepth: v }))}
                       format={len(2)}
                     />
+                    <LabelDepthNote depth={model.labelDepth} wall={model.wallThickness} units={units} />
                   </>
                 )}
               </Section>
@@ -512,6 +762,7 @@ export function ParameterPanel({ mode = 'all', side = 'left' }: Props) {
                     <CompartmentLabelsEditor
                       cols={model.cols}
                       values={model.compartmentLabels}
+                      units={units}
                       onChange={(v) =>
                         setModel(
                           ScrewOrganizerParamsSchema.parse({ ...model, compartmentLabels: v }),
@@ -546,6 +797,7 @@ export function ParameterPanel({ mode = 'all', side = 'left' }: Props) {
                       }
                       format={len(2)}
                     />
+                    <LabelDepthNote depth={model.compartmentLabelDepth} wall={model.wallThickness} units={units} />
                     <p className="text-xs text-text-dim leading-snug">
                       One label per column on the front face. Use Auto-fill for common screw size
                       sets.
@@ -556,7 +808,7 @@ export function ParameterPanel({ mode = 'all', side = 'left' }: Props) {
             )}
 
             {showFinish && (
-              <Section title="Finish">
+              <Section title="Finish" defaultOpen={false}>
                 <Toggle
                   label="Stacking lip"
                   value={model.stackingLip}
@@ -605,29 +857,21 @@ export function ParameterPanel({ mode = 'all', side = 'left' }: Props) {
             )}
 
             {showCore && (
-              <Section title="Bit set">
-                <label className="flex flex-col gap-1">
-                  <span className="label normal-case">Preset</span>
-                  <select
-                    className="input"
-                    value={model.bitSet}
-                    onChange={(e) =>
-                      setModel(
-                        DrillBitHolderParamsSchema.parse({
-                          ...model,
-                          bitSet: e.target.value as BitSetId,
-                        }),
-                      )
-                    }
-                  >
-                    {Object.values(BIT_SETS).map((bs) => (
-                      <option key={bs.id} value={bs.id}>
-                        {bs.label} — {bs.diameters.length} bits
-                      </option>
-                    ))}
-                    <option value="custom">Custom list…</option>
-                  </select>
-                </label>
+              <Section title="What it holds">
+                <TemplateBrowser
+                  value={model.bitSet}
+                  units={units}
+                  onChange={(id) => {
+                    // Take the set's suggested depth, and enough height to cut it.
+                    const depth = id === 'custom' ? model.holeDepth : BIT_SETS[id].depth;
+                    setModel(DrillBitHolderParamsSchema.parse({
+                      ...model,
+                      bitSet: id,
+                      holeDepth: depth,
+                      heightUnits: Math.max(model.heightUnits, heightUnitsForDepth(geo, depth)),
+                    }));
+                  }}
+                />
                 {model.bitSet === 'custom' && (
                   <CustomBitsEditor
                     bits={model.customBits}
@@ -636,11 +880,29 @@ export function ParameterPanel({ mode = 'all', side = 'left' }: Props) {
                     }
                   />
                 )}
+                {(() => {
+                  const holes = holeSetFor(model.bitSet, model.customBits);
+                  if (holes.mode === 'fill') {
+                    const n = previewHolderLayout(model, geo).placed.length;
+                    return (
+                      <p className="text-xs text-text-dim leading-snug">
+                        Holds <span className="text-text tabular">{n}</span> in this block — resize it for more or fewer.
+                      </p>
+                    );
+                  }
+                  return (
+                    <Toggle
+                      label="Engrave sizes under holes"
+                      value={model.holeLabels}
+                      onChange={(v) => setModel(DrillBitHolderParamsSchema.parse({ ...model, holeLabels: v }))}
+                    />
+                  );
+                })()}
               </Section>
             )}
 
             {showFinish && (
-              <Section title="Holes">
+              <Section title="Holes" defaultOpen={false}>
                 <NumberField
                   label="Hole depth"
                   value={model.holeDepth}
@@ -651,6 +913,17 @@ export function ParameterPanel({ mode = 'all', side = 'left' }: Props) {
                     setModel(DrillBitHolderParamsSchema.parse({ ...model, holeDepth: v }))
                   }
                   format={len(1)}
+                />
+                <DepthNote
+                  depth={model.holeDepth}
+                  max={maxPocketDepth(geo, model.heightUnits)}
+                  units={units}
+                  onAddHeight={() =>
+                    setModel(DrillBitHolderParamsSchema.parse({
+                      ...model,
+                      heightUnits: heightUnitsForDepth(geo, model.holeDepth),
+                    }))
+                  }
                 />
                 <NumberField
                   label="Radial clearance"
@@ -689,7 +962,7 @@ export function ParameterPanel({ mode = 'all', side = 'left' }: Props) {
             )}
 
             {showFinish && (
-              <Section title="Finish">
+              <Section title="Finish" defaultOpen={false}>
                 <Toggle
                   label="Stacking lip"
                   value={model.stackingLip}
@@ -711,6 +984,230 @@ export function ParameterPanel({ mode = 'all', side = 'left' }: Props) {
                     setModel(DrillBitHolderParamsSchema.parse({ ...model, screwHoles: v }))
                   }
                 />
+              </Section>
+            )}
+          </>
+        ) : model.kind === 'partsTray' ? (
+          <>
+            {showCore && (
+              <Section title="Size">
+                <NumberField
+                  label="Cells X"
+                  value={model.cellsX}
+                  min={1}
+                  max={10}
+                  onChange={(v) => setModel(PartsTrayParamsSchema.parse({ ...model, cellsX: v }))}
+                />
+                <NumberField
+                  label="Cells Y"
+                  value={model.cellsY}
+                  min={1}
+                  max={10}
+                  onChange={(v) => setModel(PartsTrayParamsSchema.parse({ ...model, cellsY: v }))}
+                />
+                <NumberField
+                  label="Height (units)"
+                  value={model.heightUnits}
+                  min={1}
+                  max={10}
+                  onChange={(v) => setModel(PartsTrayParamsSchema.parse({ ...model, heightUnits: v }))}
+                  format={(v) => `${v}u = ${fmtLength(v * spec.heightUnit, units, 1)}`}
+                />
+              </Section>
+            )}
+
+            {showCore && (
+              <Section title="Pockets">
+                <SegmentedControl
+                  value={model.pocketShape}
+                  onChange={(v) => setModel(PartsTrayParamsSchema.parse({ ...model, pocketShape: v as 'circle' | 'square' }))}
+                  options={[
+                    { value: 'circle', label: 'Circle' },
+                    { value: 'square', label: 'Rectangle / slot' },
+                  ]}
+                />
+                <NumberField
+                  label={model.pocketShape === 'circle' ? 'Diameter' : 'Width (across)'}
+                  value={model.pocketSize}
+                  min={3}
+                  max={150}
+                  step={0.1}
+                  onChange={(v) => setModel(PartsTrayParamsSchema.parse({ ...model, pocketSize: v }))}
+                  format={len(1)}
+                />
+                {model.pocketShape === 'square' && (
+                  <>
+                    <NumberField
+                      label="Length (front to back)"
+                      value={model.pocketLength ?? model.pocketSize}
+                      min={1}
+                      max={150}
+                      step={0.1}
+                      onChange={(v) => setModel(PartsTrayParamsSchema.parse({ ...model, pocketLength: v }))}
+                      format={len(1)}
+                    />
+                    <NumberField
+                      label="Corner radius"
+                      value={model.cornerRadius}
+                      min={0}
+                      max={20}
+                      step={0.1}
+                      onChange={(v) => setModel(PartsTrayParamsSchema.parse({ ...model, cornerRadius: v }))}
+                      format={len(1)}
+                    />
+                  </>
+                )}
+                <NumberField
+                  label="Depth"
+                  value={model.pocketDepth}
+                  min={1}
+                  max={50}
+                  step={0.5}
+                  onChange={(v) => setModel(PartsTrayParamsSchema.parse({ ...model, pocketDepth: v }))}
+                  format={len(1)}
+                />
+                <DepthNote
+                  depth={model.pocketDepth}
+                  max={maxPocketDepth(geo, model.heightUnits)}
+                  units={units}
+                  onAddHeight={() =>
+                    setModel(PartsTrayParamsSchema.parse({
+                      ...model,
+                      heightUnits: heightUnitsForDepth(geo, model.pocketDepth),
+                    }))
+                  }
+                />
+                <Toggle
+                  label="Rounded floor (scoop out parts)"
+                  value={model.roundedBottom}
+                  onChange={(v) => setModel(PartsTrayParamsSchema.parse({ ...model, roundedBottom: v }))}
+                />
+                <NumberField
+                  label="Columns"
+                  value={model.pocketCols}
+                  min={1}
+                  max={40}
+                  onChange={(v) => setModel(PartsTrayParamsSchema.parse({ ...model, pocketCols: v }))}
+                />
+                <NumberField
+                  label="Rows"
+                  value={model.pocketRows}
+                  min={1}
+                  max={40}
+                  onChange={(v) => setModel(PartsTrayParamsSchema.parse({ ...model, pocketRows: v }))}
+                />
+                {(() => {
+                  const cap = trayCapacity(geo, model);
+                  const full = model.pocketCols === cap.cols && model.pocketRows === cap.rows;
+                  return (
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs text-text-dim">
+                        Room for <span className="text-text tabular">{cap.cols} × {cap.rows}</span>
+                      </p>
+                      <button
+                        type="button"
+                        className="btn text-xs"
+                        disabled={full || cap.cols === 0 || cap.rows === 0}
+                        onClick={() =>
+                          setModel(PartsTrayParamsSchema.parse({ ...model, pocketCols: cap.cols, pocketRows: cap.rows }))
+                        }
+                      >
+                        Fill tray
+                      </button>
+                    </div>
+                  );
+                })()}
+              </Section>
+            )}
+
+            {showFinish && (
+              <Section title="Spacing" defaultOpen={false}>
+                <NumberField
+                  label="Spacing"
+                  value={model.pocketSpacing}
+                  min={0.5}
+                  max={10}
+                  step={0.1}
+                  onChange={(v) => setModel(PartsTrayParamsSchema.parse({ ...model, pocketSpacing: v }))}
+                  format={len(2)}
+                />
+                <NumberField
+                  label="Edge clearance"
+                  value={model.edgeClearance}
+                  min={1}
+                  max={15}
+                  step={0.5}
+                  onChange={(v) => setModel(PartsTrayParamsSchema.parse({ ...model, edgeClearance: v }))}
+                  format={len(1)}
+                />
+              </Section>
+            )}
+
+            {showFinish && (
+              <Section title="Finish" defaultOpen={false}>
+                <Toggle
+                  label="Stacking lip"
+                  value={model.stackingLip}
+                  onChange={(v) => setModel(PartsTrayParamsSchema.parse({ ...model, stackingLip: v }))}
+                />
+                <Toggle
+                  label="Magnet holes"
+                  value={model.magnetHoles}
+                  onChange={(v) => setModel(PartsTrayParamsSchema.parse({ ...model, magnetHoles: v }))}
+                />
+                <Toggle
+                  label="Screw holes"
+                  value={model.screwHoles}
+                  onChange={(v) => setModel(PartsTrayParamsSchema.parse({ ...model, screwHoles: v }))}
+                />
+              </Section>
+            )}
+          </>
+        ) : model.kind === 'lid' ? (
+          <>
+            {showCore && (
+              <Section title="Size">
+                <NumberField
+                  label="Cells X"
+                  value={model.cellsX}
+                  min={1}
+                  max={20}
+                  onChange={(v) => setModel(LidParamsSchema.parse({ ...model, cellsX: v }))}
+                />
+                <NumberField
+                  label="Cells Y"
+                  value={model.cellsY}
+                  min={1}
+                  max={20}
+                  onChange={(v) => setModel(LidParamsSchema.parse({ ...model, cellsY: v }))}
+                />
+              </Section>
+            )}
+
+            {showFinish && (
+              <Section title="Fit" defaultOpen={true}>
+                <NumberField
+                  label="Grip ring wall"
+                  value={model.wallThickness}
+                  min={0.8}
+                  max={4}
+                  step={0.1}
+                  onChange={(v) => setModel(LidParamsSchema.parse({ ...model, wallThickness: v }))}
+                  format={len(2)}
+                />
+                <NumberField
+                  label="Clearance"
+                  value={model.lidClearance}
+                  min={0}
+                  max={0.5}
+                  step={0.05}
+                  onChange={(v) => setModel(LidParamsSchema.parse({ ...model, lidClearance: v }))}
+                  format={(v) => `${v.toFixed(2)} mm`}
+                />
+                <p className="text-xs text-text-dim leading-snug">
+                  Fits any bin of the same size that has a stacking lip. Clearance is the gap between the
+                  grip ring and the lip — 0.15 mm works for most printers.
+                </p>
               </Section>
             )}
           </>
@@ -769,7 +1266,7 @@ export function ParameterPanel({ mode = 'all', side = 'left' }: Props) {
             )}
 
             {showCore && (
-              <Section title="Compartments">
+              <Section title="Compartments" defaultOpen={false}>
                 <NumberField
                   label="Dividers X"
                   value={model.divX}
@@ -798,7 +1295,7 @@ export function ParameterPanel({ mode = 'all', side = 'left' }: Props) {
             )}
 
             {showFinish && (
-              <Section title="Label">
+              <Section title="Label" defaultOpen={false}>
                 <SegmentedControl<LabelStyle>
                   value={model.labelStyle}
                   onChange={(v) => setModel(BinParamsSchema.parse({ ...model, labelStyle: v }))}
@@ -846,13 +1343,16 @@ export function ParameterPanel({ mode = 'all', side = 'left' }: Props) {
                       }
                       format={len(2)}
                     />
+                    {model.hollow && (
+                      <LabelDepthNote depth={model.labelDepth} wall={model.wallThickness} units={units} />
+                    )}
                   </>
                 )}
               </Section>
             )}
 
             {showFinish && (
-              <Section title="Mounting">
+              <Section title="Mounting" defaultOpen={false}>
                 <Toggle
                   label="Magnet holes"
                   value={model.magnetHoles}
@@ -903,10 +1403,11 @@ export function ParameterPanel({ mode = 'all', side = 'left' }: Props) {
             )}
 
             {showFinish && (
-              <Section title="Mounting">
+              <Section title="Mounting" defaultOpen={false}>
                 <Toggle
                   label="Magnet holes"
                   value={model.magnetHoles}
+                  disabled={model.style === 'minimal'}
                   onChange={(v) =>
                     setModel(BaseplateParamsSchema.parse({ ...model, magnetHoles: v }))
                   }
@@ -914,10 +1415,16 @@ export function ParameterPanel({ mode = 'all', side = 'left' }: Props) {
                 <Toggle
                   label="Screw holes"
                   value={model.screwHoles}
+                  disabled={model.style === 'minimal'}
                   onChange={(v) =>
                     setModel(BaseplateParamsSchema.parse({ ...model, screwHoles: v }))
                   }
                 />
+                <p className="text-xs text-text-dim leading-snug">
+                  {model.style === 'minimal'
+                    ? 'A minimal plate is an open frame — switch to Rigid to add magnet or screw holes.'
+                    : 'Holes are cut into the floor under each pocket. Magnets thicken the floor to fit 6 × 2 mm discs.'}
+                </p>
               </Section>
             )}
           </>
